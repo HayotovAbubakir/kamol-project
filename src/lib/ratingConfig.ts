@@ -1,0 +1,12 @@
+export const RATING_POINTS = {
+  SAME_DAY_MULTI: 5,
+  SAME_DAY_SINGLE: 4,
+  TWO_DAYS: 3,
+  THREE_DAYS: 1,
+  OVER_THREE_DAYS: 0,
+  REJECTION: -5,
+  COMMENT_POSITIVE: 2,
+  COMMENT_NEGATIVE: -2,
+} as const;
+
+export const MAX_STARS = 5;
