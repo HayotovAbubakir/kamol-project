@@ -28,6 +28,7 @@ data/*.json
 .idea
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
 *.suo
 *.ntvs*
 *.njsproj

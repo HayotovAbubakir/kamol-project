@@ -24,7 +24,9 @@ import {
 } from '@/lib/supabase/mappers';
 import type { DataStore } from '@/types';
 
-const LEGACY_STORE_PATH = path.join(process.cwd(), 'data', 'store.json');
+const LEGACY_STORE_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'kamol-project', 'store.json')
+  : path.join(process.cwd(), 'data', 'store.json');
 
 let cachedStore: DataStore | null = null;
 let cacheExpiry = 0;
@@ -205,6 +207,12 @@ async function fetchAllFromSupabase(): Promise<DataStore> {
 export async function readStore(): Promise<DataStore> {
   const cached = getCachedStore();
   if (cached) return cached;
+
+  if (process.env.VERCEL && !isSupabaseConfigured()) {
+    throw new Error(
+      'Vercel da Supabase majburiy. Settings → Environment Variables ga NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY qo\'shing.',
+    );
+  }
 
   let store: DataStore;
 

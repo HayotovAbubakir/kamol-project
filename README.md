@@ -119,6 +119,33 @@ npm run bot
 
 Built with ❤️ — KAMOL PROJECT
 
+## 🚀 Vercel ga deploy (GitHub dan)
+
+1. [vercel.com](https://vercel.com) ga kiring → **Add New Project**
+2. GitHub akkauntingizni ulang → `HayotovAbubakir/kamol-project` repozitoriyini tanlang
+3. **Environment Variables** qo'shing (Production, Preview, Development — hammasiga):
+
+| O'zgaruvchi | Qiymat |
+|-------------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key |
+
+4. **Deploy** bosing — build avtomatik ishlaydi (`npm run build`)
+
+> **Muhim:** Vercel da Supabase **majburiy**. Kalitlarsiz sayt ishlamaydi (local JSON Vercel da saqlanmaydi).
+
+5. Supabase da `supabase/schema.sql` ni SQL Editor da bir marta ishga tushiring.
+
+6. Deploy tugagach Vercel bergan URL ni oching (masalan: `https://kamol-project.vercel.app`).
+
+### Vercel xatoliklari (tez-tez)
+
+| Xato | Yechim |
+|------|--------|
+| Build failed — ESLint | `.eslintrc.json` repoda bor — qayta deploy qiling |
+| 500 — Supabase | Environment Variables to'g'ri qo'shilganini tekshiring |
+| Login ishlamaydi | Supabase da `users` jadvali va schema.sql bajarilganini tekshiring |
+
 ## 📤 GitHub ga yuklash
 
 1. [GitHub](https://github.com) da yangi **private** repository yarating (masalan: `kamol-project`).
