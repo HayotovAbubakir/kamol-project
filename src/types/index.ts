@@ -7,9 +7,10 @@ export interface User {
   name: string;
   role: UserRole;
   telegramId?: string;
+  phone?: string;
 }
 
-export type ProjectStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 'returned';
+export type ProjectStatus = 'pending' | 'in_progress' | 'pending_review' | 'completed' | 'rejected' | 'returned';
 
 export interface Project {
   id: string;
@@ -30,9 +31,18 @@ export interface Project {
   notes?: string;
 }
 
+export interface Payment {
+  id: string;
+  projectId: string;
+  amount: number;
+  paidAt: string;
+  note?: string;
+}
+
 export type RatingEntryType =
   | 'completion'
   | 'rejection'
+  | 'completion_reversed'
   | 'admin_comment_positive'
   | 'admin_comment_negative';
 
@@ -74,7 +84,18 @@ export type NotificationEvent =
   | 'new_order'
   | 'project_assigned'
   | 'deadline_overdue'
-  | 'deadline_warning';
+  | 'deadline_warning'
+  | 'worker_reply'
+  | 'rating_changed'
+  | 'monthly_winner';
+
+export interface WorkerReply {
+  id: string;
+  projectId: string;
+  workerId: string;
+  message: string;
+  createdAt: string;
+}
 
 export interface AppNotification {
   id: string;
@@ -100,6 +121,62 @@ export interface ProjectComment {
   updatedAt?: string;
 }
 
+export interface MonthlyWinner {
+  id: string;
+  workerId: string;
+  month: string;
+  rank: 1 | 2 | 3;
+  totalPoints: number;
+  createdAt: string;
+}
+
+export interface UsedCongratsCombo {
+  id: string;
+  workerId: string;
+  rank: 1 | 2 | 3;
+  aIndex: number;
+  bIndex: number;
+  cIndex: number;
+  month: string;
+  createdAt: string;
+}
+
+export interface MonthlySettlement {
+  id: string;
+  month: string;
+  settledAt: string;
+}
+
+export interface MonthlyWinnerView {
+  id: string;
+  workerId: string;
+  month: string;
+  seenAt: string;
+}
+
+export interface RatingHistoryItem {
+  id: string;
+  projectId: string;
+  projectLabel: string;
+  type: RatingEntryType;
+  points: number;
+  createdAt: string;
+  daysToComplete?: number;
+}
+
+export interface MonthlyLeaderboardEntry {
+  workerId: string;
+  workerName: string;
+  monthlyPoints: number;
+  rank: number;
+}
+
+export interface PendingCongrats {
+  month: string;
+  rank: 1 | 2 | 3;
+  totalPoints: number;
+}
+
 export interface DataStore {
   version?: number;
   foundedYear?: number;
@@ -108,6 +185,12 @@ export interface DataStore {
   notifications: AppNotification[];
   ratingEntries: RatingEntry[];
   comments: ProjectComment[];
+  payments: Payment[];
+  workerReplies: WorkerReply[];
+  monthlyWinners: MonthlyWinner[];
+  usedCongratsCombos: UsedCongratsCombo[];
+  monthlySettlements: MonthlySettlement[];
+  monthlyWinnerViews: MonthlyWinnerView[];
 }
 
 export type DeadlineUrgency = 'green' | 'yellow' | 'red';
@@ -124,6 +207,7 @@ export interface WorkerSummary {
   name: string;
   username: string;
   telegramId?: string;
+  phone?: string;
 }
 
 export interface CommentWithAuthor extends ProjectComment {
@@ -141,4 +225,5 @@ export interface WorkerProfile {
   inProgress: WorkerProfileProject[];
   completed: WorkerProfileProject[];
   returned: WorkerProfileProject[];
+  ratingHistory: RatingHistoryItem[];
 }

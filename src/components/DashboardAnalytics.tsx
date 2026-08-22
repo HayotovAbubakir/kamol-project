@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { Project, WorkerSummary } from '@/types';
+import type { Payment, Project, WorkerSummary } from '@/types';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { computeProjectAnalytics } from '@/lib/stats';
-import { cn, formatAddress, formatPrice, getRemainingPrice } from '@/lib/utils';
+import { cn, formatAddress, formatPrice } from '@/lib/utils';
+import { getRemainingPrice, isFullyPaid } from '@/lib/payments';
 import { Modal, Button } from '@/components/ui';
 import { ProjectCard } from '@/components/ProjectCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -15,10 +16,16 @@ import { AnalyticsChartStage } from '@/components/charts/AnalyticsChartStage';
 interface DashboardAnalyticsProps {
   projects: Project[];
   workers?: WorkerSummary[];
+  payments?: Payment[];
   compact?: boolean;
 }
 
-export function DashboardAnalytics({ projects, workers = [], compact = false }: DashboardAnalyticsProps) {
+export function DashboardAnalytics({
+  projects,
+  workers = [],
+  payments = [],
+  compact = false,
+}: DashboardAnalyticsProps) {
   const { t, theme } = useAppSettings();
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [sumOpen, setSumOpen] = useState(false);
@@ -36,6 +43,16 @@ export function DashboardAnalytics({ projects, workers = [], compact = false }: 
     () => new Map(workers.map((worker) => [worker.id, worker.name])),
     [workers],
   );
+
+  const paymentsByProject = useMemo(() => {
+    const map = new Map<string, Payment[]>();
+    for (const payment of payments) {
+      const list = map.get(payment.projectId) ?? [];
+      list.push(payment);
+      map.set(payment.projectId, list);
+    }
+    return map;
+  }, [payments]);
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()),
@@ -82,7 +99,7 @@ export function DashboardAnalytics({ projects, workers = [], compact = false }: 
   return (
     <>
       <section className="flex h-full min-h-0 flex-col">
-        <h2 className={cn('shrink-0 font-display font-semibold text-app-text', compact ? 'mb-1.5 text-sm' : 'mb-3 text-xl')}>
+        <h2 className={cn('shrink-0 font-display font-semibold text-app-text', compact ? 'mb-1.5 text-sm tv:mb-2 tv:text-lg' : 'mb-3 text-xl')}>
           {t('dashboard.analytics')}
         </h2>
 
@@ -222,7 +239,9 @@ export function DashboardAnalytics({ projects, workers = [], compact = false }: 
 
             <ul className="space-y-2.5">
               {pricedProjects.map((project, index) => {
-                const remaining = getRemainingPrice(project);
+                const projectPayments = paymentsByProject.get(project.id) ?? [];
+                const remaining = getRemainingPrice(project, projectPayments);
+                const fullyPaid = isFullyPaid(project, projectPayments);
                 const statusLabel = t(`status.${project.status}` as 'status.pending');
                 return (
                   <li
@@ -233,9 +252,11 @@ export function DashboardAnalytics({ projects, workers = [], compact = false }: 
                       <div className="min-w-0">
                         <p className="text-xs font-semibold tabular-nums text-app-muted">#{index + 1}</p>
                         <h3 className="mt-0.5 truncate font-display text-base font-semibold text-app-text">
-                          {project.clientName || project.title}
+                          {formatAddress(project) || project.clientName || project.title}
                         </h3>
-                        <p className="mt-0.5 truncate text-sm text-app-muted">{formatAddress(project)}</p>
+                        <p className="mt-0.5 truncate text-sm text-app-muted">
+                          {project.clientName || project.title}
+                        </p>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-display text-lg font-bold tabular-nums text-app-accent">
@@ -259,8 +280,13 @@ export function DashboardAnalytics({ projects, workers = [], compact = false }: 
                           {t('project.remaining')}: {formatPrice(remaining)}
                         </span>
                       )}
+                      {fullyPaid && (
+                        <span className="font-medium text-green-700 dark:text-green-300">
+                          {t('project.fullyPaid')}
+                        </span>
+                      )}
                       {project.assignedTo && workerNames.get(project.assignedTo) && (
-                        <span>
+                        <span className="min-w-0 max-w-full truncate">
                           {t('project.assignedWorker')}: {workerNames.get(project.assignedTo)}
                         </span>
                       )}

@@ -77,5 +77,8 @@ export function replaceAdminCommentRating(
 }
 
 export function shouldApplyCommentRating(projectStatus: string): boolean {
-  return projectStatus === 'completed';
+  return projectStatus === 'completed'
+    || projectStatus === 'pending_review'
+    || projectStatus === 'in_progress'
+    || projectStatus === 'returned';
 }

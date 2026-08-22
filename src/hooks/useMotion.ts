@@ -19,3 +19,14 @@ export function usePrefersReducedMotion(): boolean {
 
   return prefersReduced;
 }
+
+export function useSettledValue<T>(value: T, delayMs: number): T {
+  const [settled, setSettled] = useState(value);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettled(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+
+  return settled;
+}

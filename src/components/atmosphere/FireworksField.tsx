@@ -24,7 +24,7 @@ type Shell = {
   done: boolean;
 };
 
-export function FireworksField() {
+export function FireworksField({ autoPlay = false }: { autoPlay?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduced = usePrefersReducedMotion();
 
@@ -209,12 +209,25 @@ export function FireworksField() {
     window.addEventListener('pointerdown', onPointerDown, { passive: true });
     raf = requestAnimationFrame(tick);
 
+    let autoTimer: ReturnType<typeof setInterval> | undefined;
+    if (autoPlay) {
+      const fire = () => {
+        launchShell(
+          window.innerWidth * (0.2 + Math.random() * 0.6),
+          window.innerHeight * (0.18 + Math.random() * 0.28),
+        );
+      };
+      fire();
+      autoTimer = setInterval(fire, 900);
+    }
+
     return () => {
       cancelAnimationFrame(raf);
+      if (autoTimer) clearInterval(autoTimer);
       window.removeEventListener('resize', resize);
       window.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [reduced]);
+  }, [reduced, autoPlay]);
 
   if (reduced) return null;
 

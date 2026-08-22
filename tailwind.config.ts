@@ -5,6 +5,11 @@ const config: Config = {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
+      screens: {
+        xs: '375px',
+        tv: '1920px',
+        uhd: '2560px',
+      },
       colors: {
         app: {
           bg: 'rgb(var(--app-bg) / <alpha-value>)',
@@ -36,6 +41,14 @@ const config: Config = {
       fontFamily: {
         display: ['var(--font-display)', 'Georgia', 'Times New Roman', 'serif'],
         sans: ['var(--font-sans)', 'Segoe UI', 'system-ui', 'sans-serif'],
+      },
+      maxWidth: {
+        'app-shell': '100rem',
+        'app-shell-tv': '120rem',
+      },
+      spacing: {
+        'safe-bottom': 'env(safe-area-inset-bottom, 0px)',
+        'mobile-nav': '4.5rem',
       },
       backgroundImage: {
         'dark-gradient':

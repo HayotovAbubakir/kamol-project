@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 import { readStore, writeStore } from '@/lib/store';
 import { releaseProject } from '@/lib/notifications';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 import { createRandomPairs } from '@/lib/randomAssign';
-import { isInProgressStatus, isTerminalStatus } from '@/lib/utils';
+import { formatAddress, isInProgressStatus, isTerminalStatus } from '@/lib/utils';
+import type { AppNotification, DataStore, Project } from '@/types';
+
+function pushAssignNotification(store: DataStore, project: Project, workerId: string) {
+  const notification: AppNotification = {
+    id: uuidv4(),
+    userId: workerId,
+    message: `Sizga yangi loyiha biriktirildi: ${formatAddress(project)}`,
+    createdAt: new Date().toISOString(),
+    read: false,
+    type: 'info',
+    event: 'project_assigned',
+    projectId: project.id,
+  };
+  store.notifications.unshift(notification);
+}
 
 export async function POST(request: NextRequest) {
   const session = await getSessionFromRequest(request);
@@ -62,6 +78,7 @@ export async function POST(request: NextRequest) {
           status: 'in_progress',
           assignedAt: new Date().toISOString(),
         };
+        pushAssignNotification(store, store.projects[idx], workerId);
         assigned++;
       }
 
@@ -69,7 +86,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Tayinlash uchun kutilayotgan loyiha topilmadi' }, { status: 400 });
       }
 
-      await writeStore(store, { tables: ['projects'] });
+      await writeStore(store, { tables: ['projects', 'notifications'] });
       return NextResponse.json({ assigned, mode: 'batch' });
     }
 
@@ -90,11 +107,12 @@ export async function POST(request: NextRequest) {
             status: 'in_progress',
             assignedAt: new Date().toISOString(),
           };
+          pushAssignNotification(store, store.projects[idx], pair.workerId);
           assigned++;
         }
       }
 
-      await writeStore(store, { tables: ['projects'] });
+      await writeStore(store, { tables: ['projects', 'notifications'] });
       return NextResponse.json({ assigned, mode: 'random' });
     }
 
@@ -114,14 +132,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ishchi topilmadi' }, { status: 404 });
     }
 
+    const previousWorkerId = store.projects[idx].assignedTo;
     store.projects[idx] = {
       ...store.projects[idx],
       assignedTo: workerId,
       status: 'in_progress',
       assignedAt: new Date().toISOString(),
     };
+    if (previousWorkerId !== workerId) {
+      pushAssignNotification(store, store.projects[idx], workerId);
+    }
 
-    await writeStore(store, { tables: ['projects'] });
+    await writeStore(store, { tables: ['projects', 'notifications'] });
     return NextResponse.json({ project: store.projects[idx] });
   } catch {
     return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });

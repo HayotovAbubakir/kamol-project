@@ -3,7 +3,12 @@
 import type { AppNotification, NotificationEvent, NotificationType } from '@/types';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { formatDateTime, cn } from '@/lib/utils';
-import { inferNotificationEvent } from '@/lib/notificationHelpers';
+import {
+  inferNotificationEvent,
+  parseNotificationMessage,
+  parseWorkerReplyNotification,
+} from '@/lib/notificationHelpers';
+import { UserAvatar } from '@/components/UserAvatar';
 
 interface NotificationsPanelProps {
   notifications: AppNotification[];
@@ -66,6 +71,32 @@ function NotificationIcon({
         aria-hidden
       >
         +
+      </span>
+    );
+  }
+  if (event === 'rating_changed') {
+    return (
+      <span
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-full bg-amber-500/15 font-bold text-amber-500 ring-1 ring-amber-500/25',
+          sizeClass,
+        )}
+        aria-hidden
+      >
+        ★
+      </span>
+    );
+  }
+  if (event === 'monthly_winner') {
+    return (
+      <span
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-full bg-yellow-500/15 text-lg ring-1 ring-yellow-500/25',
+          sizeClass,
+        )}
+        aria-hidden
+      >
+        🏆
       </span>
     );
   }
@@ -147,6 +178,60 @@ export function NotificationsPanel({
         ) : (
           notifications.map((n) => {
             const event = resolveEvent(n);
+            const workerReply = event === 'worker_reply' ? parseWorkerReplyNotification(n.message) : null;
+
+            if (workerReply) {
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => !n.read && onMarkRead(n.id)}
+                  className={cn(
+                    'ui-notification-item ui-notification-worker-reply w-full text-left',
+                    full && 'rounded-2xl border border-app-border bg-app-card p-4 shadow-sm dark:ring-1 dark:ring-metallic-green/10',
+                    compact && 'p-2.5 text-xs',
+                    !n.read && 'ui-notification-unread ui-notification-worker-reply-unread',
+                  )}
+                >
+                  <div className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}>
+                    <div className="ui-notification-worker ui-notification-worker-reply-badge shrink-0">
+                      <UserAvatar name={workerReply.workerName} size={compact ? 'sm' : 'md'} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2">
+                        <p className={cn('font-semibold text-app-text', !n.read && 'font-bold')}>
+                          {workerReply.workerName}
+                        </p>
+                        {!n.read && (
+                          <span className="ui-notification-unread-dot mt-1.5 shrink-0" aria-hidden />
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs font-medium text-app-accent">
+                        {t('notifications.workerReplyTitle')}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-app-text">
+                        {workerReply.address || workerReply.projectTitle}
+                      </p>
+                      {workerReply.returnReason && (
+                        <p className="mt-1 text-xs leading-relaxed text-app-muted">
+                          {t('project.returnedReason')}: {workerReply.returnReason}
+                        </p>
+                      )}
+                      <blockquote className="ui-notification-reply-quote mt-3 text-sm leading-relaxed text-app-text">
+                        {workerReply.reply}
+                      </blockquote>
+                      <p className="mt-2 text-xs tabular-nums text-app-muted">
+                        {formatDateTime(workerReply.repliedAt || n.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            }
+
+            const parsed = parseNotificationMessage(n.message);
+            const showWorker = Boolean(parsed.workerName);
+
             return (
               <button
                 key={n.id}
@@ -164,14 +249,43 @@ export function NotificationsPanel({
                 )}
               >
                 <div className={cn('flex items-start', compact ? 'gap-2' : 'gap-3')}>
-                  <NotificationIcon event={event} type={n.type} compact={compact} />
+                  {showWorker ? (
+                    <div
+                      className={cn(
+                        'ui-notification-worker',
+                        compact && 'ui-notification-worker-compact',
+                        parsed.action === 'returned' && 'ui-notification-worker-returned',
+                      )}
+                    >
+                      <UserAvatar name={parsed.workerName!} size={compact ? 'sm' : 'md'} />
+                      <span className="ui-notification-worker-meta">
+                        <span className="ui-notification-worker-label">{t('project.assignedWorker')}</span>
+                        <span className="ui-notification-worker-name">{parsed.workerName}</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <NotificationIcon event={event} type={n.type} compact={compact} />
+                  )}
+
                   <div className="min-w-0 flex-1">
-                    <p className={cn('leading-snug', compact && 'line-clamp-2', !n.read && 'font-medium')}>{n.message}</p>
-                    {!compact && (
-                      <p className="mt-1 text-xs text-app-muted">
-                        {formatDateTime(n.createdAt)}
-                      </p>
-                    )}
+                    <div className={cn('flex items-start gap-2', compact && 'gap-1.5')}>
+                      {showWorker && (
+                        <NotificationIcon event={event} type={n.type} compact />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className={cn('leading-snug', compact && 'line-clamp-2', !n.read && 'font-medium')}>
+                          {parsed.headline}
+                        </p>
+                        {parsed.notes && (
+                          <p className={cn('mt-1 text-app-muted', compact ? 'line-clamp-1 text-[11px]' : 'text-xs')}>
+                            {parsed.notes}
+                          </p>
+                        )}
+                        <p className={cn('text-app-muted', compact ? 'mt-0.5 text-[10px]' : 'mt-1 text-xs')}>
+                          {formatDateTime(n.createdAt)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </button>

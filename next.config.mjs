@@ -4,6 +4,11 @@ const nextConfig = {
   devIndicators: false,
   compress: true,
   poweredByHeader: false,
+  compiler: {
+    removeConsole: {
+      exclude: ['error'],
+    },
+  },
   experimental: {
     optimizePackageImports: ['apexcharts', 'react-apexcharts'],
   },
@@ -11,6 +16,9 @@ const nextConfig = {
     fetches: {
       fullUrl: false,
     },
+  },
+  async redirects() {
+    return [{ source: '/favicon.ico', destination: '/logo.png', permanent: true }];
   },
 };
 

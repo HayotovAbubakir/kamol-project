@@ -15,9 +15,10 @@ export default function WorkerDashboardPage() {
   const { t } = useAppSettings();
   const {
     activeProjects,
-    completedProjects,
+    completedCount,
     rating,
     loading,
+    session,
   } = useWorkerData();
 
   if (loading) return <SkeletonDashboard withNotifications={false} />;
@@ -26,6 +27,7 @@ export default function WorkerDashboardPage() {
     <>
       <PageHeader
         title={t('dashboard.workerTitle')}
+        subtitle={session ? t('dashboard.workerGreeting').replace('{name}', session.name) : undefined}
         description={t('dashboard.workerDesc')}
         actions={
           <Link href="/worker/projects">
@@ -34,14 +36,14 @@ export default function WorkerDashboardPage() {
         }
       />
 
-      <div className="ui-glass-card mb-6 rounded-2xl border p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-app-accent">
+      <div className="ui-glass-card mb-5 rounded-2xl border p-4 shadow-sm sm:mb-6 sm:p-5 md:p-6 dark:ring-1 dark:ring-metallic-green/15">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-app-accent sm:text-sm">
           {t('rating.myRating')}
         </h3>
         <StarRating rating={rating?.rating ?? 0} size="lg" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="ui-stat-grid">
         <StatCard
           label={t('worker.inProgress')}
           value={activeProjects.length}
@@ -49,7 +51,7 @@ export default function WorkerDashboardPage() {
         />
         <StatCard
           label={t('worker.completed')}
-          value={completedProjects.length}
+          value={completedCount}
           href="/worker/completed"
         />
       </div>
@@ -69,7 +71,7 @@ export default function WorkerDashboardPage() {
             description={t('worker.noActiveProjectDesc')}
           />
         ) : (
-          <div className="grid gap-4">
+          <div className="ui-card-stack">
             {activeProjects.slice(0, 4).map((project) => (
               <ProjectCard key={project.id} project={project} variant="worker" />
             ))}

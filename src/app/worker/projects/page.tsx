@@ -19,13 +19,21 @@ export default function WorkerProjectsPage() {
   const { activeProjects, comments, loading, loadData } = useWorkerData();
   const [searchQuery, setSearchQuery] = useState('');
   const [busy, setBusy] = useState(false);
-  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
-  const [notesDraft, setNotesDraft] = useState('');
 
   const filtered = useMemo(
     () => filterProjectsBySearch(activeProjects, searchQuery),
     [activeProjects, searchQuery],
   );
+
+  const commentsByProject = useMemo(() => {
+    const map = new Map<string, typeof comments>();
+    for (const c of comments) {
+      const list = map.get(c.projectId) ?? [];
+      list.push(c);
+      map.set(c.projectId, list);
+    }
+    return map;
+  }, [comments]);
 
   async function handleComplete(projectId: string) {
     if (busy) return;
@@ -36,37 +44,7 @@ export default function WorkerProjectsPage() {
         body: JSON.stringify({ id: projectId, status: 'completed' }),
       });
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : t('common.error'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleNotesEditor(projectId: string) {
-    if (editingNotesId === projectId) {
-      setEditingNotesId(null);
-      setNotesDraft('');
-      return;
-    }
-    const project = activeProjects.find((p) => p.id === projectId);
-    setEditingNotesId(projectId);
-    setNotesDraft(project?.description ?? '');
-  }
-
-  async function handleSaveNotes(projectId: string, text: string) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await apiFetch('/api/projects', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: projectId, description: text }),
-      });
-      setEditingNotesId(null);
-      setNotesDraft('');
-      await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.completed'));
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : t('common.error'));
     } finally {
@@ -107,21 +85,15 @@ export default function WorkerProjectsPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="ui-project-grid">
           {filtered.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
               variant="worker"
-              comments={comments.filter((c) => c.projectId === project.id)}
+              comments={commentsByProject.get(project.id) ?? []}
               showActions
               onStatusChange={(id) => handleComplete(id)}
-              onNotes={toggleNotesEditor}
-              onSaveNotes={handleSaveNotes}
-              notesEditing={editingNotesId === project.id}
-              notesDraft={editingNotesId === project.id ? notesDraft : ''}
-              onNotesDraftChange={setNotesDraft}
-              notesSaving={busy && editingNotesId === project.id}
             />
           ))}
         </div>

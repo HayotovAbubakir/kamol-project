@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readStore } from '@/lib/store';
-import { getWorkerRating, getWeeklyRanks } from '@/lib/rating';
+import { getWorkerRating, getWeeklyRanks, getWorkerRatingHistory } from '@/lib/rating';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 import { isInProgressStatus, sortWorkerActiveProjects } from '@/lib/utils';
 import type { CommentWithAuthor, Project, WorkerProfile, WorkerProfileProject } from '@/types';
 
 function mapProject(
   project: Project,
-  comments: CommentWithAuthor[],
+  commentsByProject: Map<string, CommentWithAuthor[]>,
 ): WorkerProfileProject {
   return {
     ...project,
-    comments: comments.filter((c) => c.projectId === project.id),
+    comments: commentsByProject.get(project.id) ?? [],
   };
 }
 
@@ -38,21 +38,30 @@ export async function GET(request: NextRequest) {
     const weeklyRank =
       getWeeklyRanks(store).find((entry) => entry.workerId === workerId)?.weeklyRank ?? null;
 
-    const commentsWithAuthors: CommentWithAuthor[] = (store.comments ?? []).map((c) => ({
-      ...c,
-      authorUsername: store.users.find((u) => u.id === c.authorId)?.username ?? 'admin',
-    }));
+    const usersById = new Map<string, (typeof store.users)[number]>();
+    for (const u of store.users) usersById.set(u.id, u);
+
+    const commentsByProject = new Map<string, CommentWithAuthor[]>();
+    for (const c of store.comments ?? []) {
+      const enriched: CommentWithAuthor = {
+        ...c,
+        authorUsername: usersById.get(c.authorId)?.username ?? 'admin',
+      };
+      const list = commentsByProject.get(c.projectId) ?? [];
+      list.push(enriched);
+      commentsByProject.set(c.projectId, list);
+    }
 
     const assigned = store.projects.filter((p) => p.assignedTo === workerId);
     const inProgress = sortWorkerActiveProjects(
       assigned.filter((p) => isInProgressStatus(p.status)),
-    ).map((p) => mapProject(p, commentsWithAuthors));
+    ).map((p) => mapProject(p, commentsByProject));
     const completed = assigned
       .filter((p) => p.status === 'completed')
-      .map((p) => mapProject(p, commentsWithAuthors));
+      .map((p) => mapProject(p, commentsByProject));
     const returned = assigned
       .filter((p) => p.returnedAt != null)
-      .map((p) => mapProject(p, commentsWithAuthors));
+      .map((p) => mapProject(p, commentsByProject));
 
     const profile: WorkerProfile = {
       worker: {
@@ -60,12 +69,14 @@ export async function GET(request: NextRequest) {
         name: worker.name,
         username: worker.username,
         telegramId: worker.telegramId,
+        phone: worker.phone,
       },
       rating,
       weeklyRank,
       inProgress,
       completed,
       returned,
+      ratingHistory: getWorkerRatingHistory(store, workerId),
     };
 
     return NextResponse.json({ profile });

@@ -101,7 +101,7 @@ export function Modal({ open, title, description, onClose, children, size = 'md'
       >
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 id="modal-title" className="font-display text-lg font-bold text-app-text">
+            <h3 id="modal-title" className="font-display text-base font-bold text-app-text sm:text-lg md:text-xl">
               {title}
             </h3>
             {description && (
@@ -172,6 +172,7 @@ interface ConfirmModalProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  confirmingLabel?: string;
   cancelLabel?: string;
   variant?: 'danger' | 'primary';
   onConfirm: () => void | Promise<void>;
@@ -183,6 +184,7 @@ export function ConfirmModal({
   title,
   message,
   confirmLabel,
+  confirmingLabel,
   cancelLabel,
   variant = 'danger',
   onConfirm,
@@ -272,7 +274,7 @@ export function ConfirmModal({
 
         <div className="mt-6 flex gap-3">
           <Button variant={variant} className="flex-1" onClick={handleConfirm} disabled={confirming}>
-            {confirming ? t('common.saving') : (confirmLabel ?? t('common.delete'))}
+            {confirming ? (confirmingLabel ?? t('common.deleting')) : (confirmLabel ?? t('common.delete'))}
           </Button>
           <Button variant="outline" className="flex-1" onClick={onCancel} disabled={confirming}>
             {cancelLabel ?? t('common.cancel')}

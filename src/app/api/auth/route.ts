@@ -21,7 +21,9 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json({ user: session });
-  } catch {
-    return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Server xatoligi';
+    console.error('[api/auth]', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

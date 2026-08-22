@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
@@ -44,18 +44,6 @@ function animationLabel(type: AnimationType | 'mix', t: (key: string) => string)
     shuffle: t('randomAssign.animationShuffle'),
     lottery: t('randomAssign.animationLottery'),
     mix: t('randomAssign.animationMix'),
-  };
-  return map[type];
-}
-
-function animationDesc(type: AnimationType | 'mix', t: (key: string) => string): string {
-  const map: Record<AnimationType | 'mix', string> = {
-    wheel: t('randomAssign.animationWheelDesc'),
-    slot: t('randomAssign.animationSlotDesc'),
-    dice: t('randomAssign.animationDiceDesc'),
-    shuffle: t('randomAssign.animationShuffleDesc'),
-    lottery: t('randomAssign.animationLotteryDesc'),
-    mix: t('randomAssign.animationMixDesc'),
   };
   return map[type];
 }
@@ -240,6 +228,19 @@ export default function RandomAssignPage() {
     .replace('{current}', String(Math.min(currentIndex + 1, pairs.length || 1)))
     .replace('{total}', String(pairs.length || 0));
 
+  useEffect(() => {
+    const shell = document.querySelector('.ui-page-shell');
+    if (!shell) return;
+    if (phase === 'running') {
+      shell.classList.add('overflow-hidden');
+      shell.classList.remove('overflow-y-auto');
+      return () => {
+        shell.classList.remove('overflow-hidden');
+        shell.classList.add('overflow-y-auto');
+      };
+    }
+  }, [phase]);
+
   if (loading) {
     return (
       <div className="flex justify-center py-24">
@@ -250,21 +251,25 @@ export default function RandomAssignPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('randomAssign.title')}
-        description={t('randomAssign.description')}
-        actions={
-          phase === 'setup' ? (
-            <Button variant="outline" onClick={() => router.push('/admin/projects')}>
-              ← {t('nav.projects')}
-            </Button>
-          ) : null
-        }
-      />
+      {phase !== 'running' && (
+        <PageHeader
+          title={t('randomAssign.title')}
+          description={phase === 'setup' ? t('randomAssign.description') : undefined}
+          actions={
+            phase === 'setup' ? (
+              <Button variant="outline" onClick={() => router.push('/admin/projects')}>
+                ← {t('nav.projects')}
+              </Button>
+            ) : null
+          }
+        />
+      )}
 
-      <div className="mb-8">
-        <AssignStepIndicator current={phaseToStep(phase)} labels={stepLabels} />
-      </div>
+      {phase !== 'running' && (
+        <div className="mb-8">
+          <AssignStepIndicator current={phaseToStep(phase)} labels={stepLabels} />
+        </div>
+      )}
 
       {(phase === 'setup' || phase === 'preview') && selectedWorkerUsers.length > 0 && selectedProjectItems.length > 0 && (
         <SummaryStrip
@@ -281,11 +286,6 @@ export default function RandomAssignPage() {
 
       {phase === 'setup' && (
         <div className="space-y-8">
-          <FairRuleBanner
-            title={t('randomAssign.fairRule')}
-            description={t('randomAssign.fairRuleDesc')}
-          />
-
           <div className="grid gap-6 lg:grid-cols-2">
             <SelectionPanel
               title={t('randomAssign.selectWorkers')}
@@ -302,7 +302,7 @@ export default function RandomAssignPage() {
                   checked={selectedWorkers.includes(w.id)}
                   onChange={() => toggleWorker(w.id)}
                   label={w.name}
-                  sub={w.username}
+                  sub=""
                 />
               ))}
             </SelectionPanel>
@@ -334,31 +334,15 @@ export default function RandomAssignPage() {
                     key={p.id}
                     checked={selectedProjects.includes(p.id)}
                     onChange={() => toggleProject(p.id)}
-                    label={p.title}
-                    sub={formatProjectShort(p)}
+                    label={p.address || p.title}
+                    sub={p.clientName || formatProjectShort(p)}
                   />
                 ))
               )}
             </SelectionPanel>
           </div>
 
-          {selectedWorkerUsers.length > 0 && selectedProjectItems.length > 0 && (
-            <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
-              <h2 className="font-display text-lg font-semibold">{t('randomAssign.plannedDistribution')}</h2>
-              <p className="mt-1 text-sm text-app-muted">{t('randomAssign.distributionDesc')}</p>
-              <div className="mt-4">
-                <AssignDistributionChart data={distributionData} />
-              </div>
-              <AssignWarnings
-                unassigned={fairSummary.unassignedProjectCount}
-                idleWorkers={fairSummary.idleWorkerCount}
-                unassignedLabel={t('randomAssign.unassignedWarning').replace('{count}', String(fairSummary.unassignedProjectCount))}
-                idleLabel={t('randomAssign.idleWorkersWarning').replace('{count}', String(fairSummary.idleWorkerCount))}
-              />
-            </section>
-          )}
-
-          <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+          <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
             <h2 className="font-display text-lg font-semibold">{t('randomAssign.animationStyle')}</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {animationOptions.map((type) => (
@@ -368,7 +352,7 @@ export default function RandomAssignPage() {
                   onClick={() => setAnimationChoice(type)}
                   className={cn(
                     uiChoiceCardClass,
-                    'flex items-start gap-4 text-left',
+                    'flex items-center gap-3 text-left',
                     animationChoice === type ? uiChoiceCardActiveClass : '',
                   )}
                 >
@@ -379,10 +363,7 @@ export default function RandomAssignPage() {
                       +
                     </span>
                   )}
-                  <div>
-                    <p className="font-semibold text-app-text">{animationLabel(type, t)}</p>
-                    <p className="mt-0.5 text-sm text-app-muted">{animationDesc(type, t)}</p>
-                  </div>
+                  <p className="font-semibold text-app-text">{animationLabel(type, t)}</p>
                 </button>
               ))}
             </div>
@@ -408,7 +389,6 @@ export default function RandomAssignPage() {
                 <h2 className="font-display text-xl font-bold text-app-text">
                   {t('randomAssign.distributionTitle')}
                 </h2>
-                <p className="mt-1 text-sm text-app-muted">{t('randomAssign.distributionDesc')}</p>
               </div>
               <Button variant="outline" size="sm" onClick={handleRegenerate}>
                 ↻ {t('randomAssign.regenerate')}
@@ -427,25 +407,6 @@ export default function RandomAssignPage() {
             />
           </section>
 
-          <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
-            <h3 className="mb-4 font-display text-lg font-semibold">{t('randomAssign.previewPairs')}</h3>
-            <ul className="space-y-2">
-              {pairs.map((pair, i) => (
-                <li
-                  key={`${pair.projectId}-${pair.workerId}`}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border border-app-border/70 bg-app-bg px-4 py-3 text-sm"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-app-accent/20 text-xs font-bold text-app-accent">
-                    {i + 1}
-                  </span>
-                  <span className="font-semibold text-app-text">{pair.workerName}</span>
-                  <span className="text-app-muted">→</span>
-                  <span className="text-app-text">{pair.projectLabel}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
           <div className="flex flex-wrap justify-center gap-3">
             <Button variant="outline" onClick={() => setPhase('setup')}>
               ← {t('randomAssign.backToSelect')}
@@ -458,17 +419,18 @@ export default function RandomAssignPage() {
       )}
 
       {phase === 'running' && currentPair && (
-        <div className="mx-auto max-w-3xl space-y-8">
-          <div className="text-center">
-            <p className="text-sm font-medium uppercase tracking-widest text-app-muted">
-              {t('randomAssign.pairPreview')} · {progressText}
-            </p>
-            <p className="mt-2 font-display text-xl font-bold text-app-accent">
-              {animationLabel(currentAnimation, t)}
-            </p>
+        <div className="mx-auto flex h-[calc(100dvh-5.5rem)] max-w-2xl flex-col overflow-hidden lg:h-[calc(100dvh-4.5rem)]">
+          <div className="mb-4 flex shrink-0 items-center gap-4">
+            <span className="text-sm font-bold text-app-accent">{progressText}</span>
+            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-app-border/30">
+              <div
+                className="h-full rounded-full bg-app-accent transition-all duration-500"
+                style={{ width: `${pairs.length ? ((currentIndex + 1) / pairs.length) * 100 : 0}%` }}
+              />
+            </div>
           </div>
 
-          <div className="rounded-3xl border border-app-border bg-app-card px-6 py-12 shadow-lg dark:ring-1 dark:ring-metallic-green/15">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
             <AssignAnimation
               key={`${currentIndex}-${currentPair.projectId}`}
               type={currentAnimation}
@@ -476,16 +438,14 @@ export default function RandomAssignPage() {
               projectLabel={currentPair.projectLabel}
               workerCandidates={workerCandidates}
               projectCandidates={projectCandidates}
+              workerLabel={t('randomAssign.labelWorker')}
+              projectLabelTitle={t('randomAssign.labelProject')}
               onComplete={handleAnimationComplete}
             />
           </div>
 
-          {results.length > 0 && (
-            <ResultsList title={t('randomAssign.results')} items={results} />
-          )}
-
           {saving && (
-            <p className="text-center text-sm text-app-muted">{t('randomAssign.starting')}</p>
+            <p className="shrink-0 pt-2 text-center text-sm text-app-muted">{t('randomAssign.starting')}</p>
           )}
         </div>
       )}
@@ -557,20 +517,6 @@ function SummaryStrip({
   );
 }
 
-function FairRuleBanner({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="flex gap-4 rounded-2xl border border-app-accent/30 bg-app-accent/5 px-5 py-4">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-app-accent/20 text-lg text-app-accent">
-        ⚖
-      </span>
-      <div>
-        <p className="font-semibold text-app-text">{title}</p>
-        <p className="mt-0.5 text-sm text-app-muted">{description}</p>
-      </div>
-    </div>
-  );
-}
-
 function AssignWarnings({
   unassigned,
   idleWorkers,
@@ -620,7 +566,7 @@ function SelectionPanel({
   empty?: string;
 }) {
   return (
-    <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold">{title}</h2>
@@ -665,7 +611,7 @@ function SelectRow({
       <input type="checkbox" checked={checked} onChange={onChange} className="ui-checkbox" />
       <div className="min-w-0">
         <p className="truncate font-medium text-app-text">{label}</p>
-        <p className="truncate text-sm text-app-muted">{sub}</p>
+        {sub ? <p className="truncate text-sm text-app-muted">{sub}</p> : null}
       </div>
     </label>
   );
@@ -681,7 +627,7 @@ function ResultsList({
   highlight?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <h3 className="mb-4 font-display text-lg font-semibold">{title}</h3>
       <ol className="space-y-2">
         {items.map((line, i) => (

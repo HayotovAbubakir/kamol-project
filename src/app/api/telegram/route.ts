@@ -1,8 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { readStore } from '@/lib/store';
+import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 import { formatAddress, formatDate, getDeadlineUrgency, getStatusLabel, isInProgressStatus, isTerminalStatus } from '@/lib/utils';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const session = await getSessionFromRequest(request);
+  if (!requireAdmin(session)) {
+    return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
+  }
+
   try {
     const store = await readStore();
     const workers = store.users.filter((u) => u.role === 'worker');

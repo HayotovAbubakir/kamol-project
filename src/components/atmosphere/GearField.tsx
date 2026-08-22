@@ -37,6 +37,8 @@ export function GearField() {
       { x: 0.84, y: 0.84, r: 110, teeth: 16, speed: -0.013, angle: 0.5 },
     ];
     let raf = 0;
+    let lastPaint = 0;
+    let hidden = document.hidden;
 
     function resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -113,17 +115,40 @@ export function GearField() {
         drawGear(cx, cy, gear.r, gear.teeth, gear.angle, glow);
       }
 
-      raf = requestAnimationFrame(draw);
+      raf = requestAnimationFrame(loop);
+    }
+
+    function loop(now: number) {
+      if (hidden) return;
+      if (now - lastPaint < 33) {
+        raf = requestAnimationFrame(loop);
+        return;
+      }
+      lastPaint = now;
+      draw();
+    }
+
+    function onVisibility() {
+      hidden = document.hidden;
+      if (hidden) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        return;
+      }
+      lastPaint = 0;
+      raf = requestAnimationFrame(loop);
     }
 
     resize();
-    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointermove', onMove, { passive: true });
     window.addEventListener('resize', resize);
-    raf = requestAnimationFrame(draw);
+    document.addEventListener('visibilitychange', onVisibility);
+    raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [reduced]);
 

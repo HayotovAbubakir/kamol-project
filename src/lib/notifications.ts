@@ -15,19 +15,21 @@ export function syncDeadlineNotifications(store: DataStore): { store: DataStore;
     const adminId = store.users.find((u) => u.role === 'admin')?.id;
     if (!adminId) continue;
 
+    // Include read notifications too: once we've notified the admin about this
+    // (project, urgency), never re-notify — reading the notification does not
+    // reset the "warned" state.
     const exists = store.notifications.some(
       (n) =>
         n.projectId === project.id &&
         n.userId === adminId &&
-        n.type === (urgency === 'red' ? 'danger' : 'warning') &&
-        !n.read,
+        n.type === (urgency === 'red' ? 'danger' : 'warning'),
     );
 
     if (!exists) {
       const message =
         urgency === 'red'
-          ? `MUDDAT O'TDI: ${project.title} — ${formatAddress(project)}`
-          : `Diqqat: ${project.title} — 3-kun muddat yaqinlashmoqda`;
+          ? `MUDDAT O'TDI: ${formatAddress(project)}`
+          : `Diqqat: ${formatAddress(project)} — 3-kun muddat yaqinlashmoqda`;
 
       store.notifications.unshift({
         id: uuidv4(),

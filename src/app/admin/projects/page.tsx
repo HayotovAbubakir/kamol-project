@@ -6,7 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ProjectCard } from '@/components/ProjectCard';
+import { PaymentHistoryList } from '@/components/PaymentHistoryList';
 import { ProjectSearchInput } from '@/components/ProjectSearchInput';
+import { ProjectTabIcon } from '@/components/icons/ProjectTabIcon';
 import { Button, Input, Modal, NumberInput, ConfirmModal, uiFieldLabelClass, uiInputClass, uiInputGroupClass, uiSelectClass, uiTogglePanelClass, uiTogglePanelActiveClass } from '@/components/ui';
 import type { CommentSentiment } from '@/types';
 import { SkeletonPage } from '@/components/Skeleton';
@@ -14,7 +16,8 @@ import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useAdminData } from '@/hooks/useAdminData';
 import { apiFetch } from '@/lib/auth';
-import { cn, extractUzbekMobileDigits, filterProjectsBySearch, formatPhoneInput, normalizePhone } from '@/lib/utils';
+import { cn, extractUzbekMobileDigits, filterProjectsBySearch, formatPhoneInput, formatPrice, normalizePhone, parseNumberInput, formatNumberInput } from '@/lib/utils';
+import { getRemainingPrice } from '@/lib/payments';
 
 function formatPhoneField(value: string): string {
   const digits = extractUzbekMobileDigits(value) ?? value.replace(/\D/g, '').slice(0, 9);
@@ -31,11 +34,11 @@ const EMPTY_NEW_PROJECT = {
   advanceAmount: '',
 };
 
-type ProjectTab = 'active' | 'completed' | 'pending';
+type ProjectTab = 'pending' | 'active' | 'review' | 'completed';
 
 function parseProjectTab(value: string | null): ProjectTab {
-  if (value === 'pending' || value === 'completed' || value === 'active') return value;
-  return 'active';
+  if (value === 'pending' || value === 'completed' || value === 'active' || value === 'review') return value;
+  return 'pending';
 }
 
 export default function AdminProjectsPage() {
@@ -56,6 +59,8 @@ function AdminProjectsPageContent() {
     projects,
     workers,
     comments,
+    payments,
+    ratingEntries,
     loading,
     error,
     setError,
@@ -98,6 +103,54 @@ function AdminProjectsPageContent() {
     advanceAmount: string;
   } | null>(null);
   const [formBusy, setFormBusy] = useState(false);
+  const [paymentModalId, setPaymentModalId] = useState<string | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [returnReasonEditId, setReturnReasonEditId] = useState<string | null>(null);
+  const [returnReasonDraft, setReturnReasonDraft] = useState('');
+
+  const paymentsByProject = useMemo(() => {
+    const map = new Map<string, typeof payments>();
+    for (const payment of payments) {
+      const list = map.get(payment.projectId) ?? [];
+      list.push(payment);
+      map.set(payment.projectId, list);
+    }
+    return map;
+  }, [payments]);
+
+  const commentsByProject = useMemo(() => {
+    const map = new Map<string, typeof comments>();
+    for (const comment of comments) {
+      const list = map.get(comment.projectId) ?? [];
+      list.push(comment);
+      map.set(comment.projectId, list);
+    }
+    return map;
+  }, [comments]);
+
+  const rejectionCountByProject = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of ratingEntries) {
+      if (entry.type !== 'rejection') continue;
+      map.set(entry.projectId, (map.get(entry.projectId) ?? 0) + 1);
+    }
+    return map;
+  }, [ratingEntries]);
+
+  const workersById = useMemo(() => {
+    const map = new Map<string, (typeof workers)[number]>();
+    for (const w of workers) map.set(w.id, w);
+    return map;
+  }, [workers]);
+
+  function projectPayments(projectId: string) {
+    return paymentsByProject.get(projectId) ?? [];
+  }
+
+  function rejectionCountFor(projectId: string) {
+    return rejectionCountByProject.get(projectId) ?? 0;
+  }
 
   function closeNewForm() {
     setShowNewForm(false);
@@ -126,6 +179,7 @@ function AdminProjectsPageContent() {
       projects.filter((p) => {
         if (tab === 'completed') return p.status === 'completed';
         if (tab === 'pending') return p.status === 'pending';
+        if (tab === 'review') return p.status === 'pending_review';
         return p.status === 'in_progress';
       }),
     [projects, tab],
@@ -136,11 +190,12 @@ function AdminProjectsPageContent() {
     [tabProjects, searchQuery],
   );
 
-  const tabCounts = {
-    active: projects.filter((p) => p.status === 'in_progress').length,
+  const tabCounts = useMemo(() => ({
     pending: projects.filter((p) => p.status === 'pending').length,
+    active: projects.filter((p) => p.status === 'in_progress').length,
+    review: projects.filter((p) => p.status === 'pending_review').length,
     completed: projects.filter((p) => p.status === 'completed').length,
-  };
+  }), [projects]);
 
   async function handleAssign(projectId: string) {
     if (!selectedWorker || formBusy) return;
@@ -195,7 +250,7 @@ function AdminProjectsPageContent() {
       });
       setUnassignId(null);
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.unassigned'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.error');
       setError(msg);
@@ -226,7 +281,7 @@ function AdminProjectsPageContent() {
       });
       closeNewForm();
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.created'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.error');
       setError(msg);
@@ -243,6 +298,109 @@ function AdminProjectsPageContent() {
     try {
       await apiFetch(`/api/projects?id=${deleteId}`, { method: 'DELETE' });
       setDeleteId(null);
+      await loadData({ silent: true });
+      showToast('success', t('toast.deleted'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('common.error');
+      setError(msg);
+      showToast('error', msg);
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  async function handleResubmit(projectId: string) {
+    if (formBusy) return;
+    setFormBusy(true);
+    setError('');
+    try {
+      await apiFetch('/api/projects', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: projectId, action: 'resubmit' }),
+      });
+      await loadData({ silent: true });
+      showToast('success', t('toast.resubmitted'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('common.error');
+      setError(msg);
+      showToast('error', msg);
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  async function handleApprove(projectId: string) {
+    if (formBusy) return;
+    setFormBusy(true);
+    setError('');
+    try {
+      await apiFetch('/api/projects', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: projectId, status: 'completed' }),
+      });
+      await loadData({ silent: true });
+      showToast('success', t('toast.projectApproved'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('common.error');
+      setError(msg);
+      showToast('error', msg);
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  async function handleAddPayment() {
+    if (!paymentModalId || formBusy) return;
+    const amount = parseNumberInput(paymentAmount) ?? 0;
+    if (!amount || amount <= 0) return;
+
+    const project = projects.find((p) => p.id === paymentModalId);
+    const remaining = project
+      ? getRemainingPrice(project, projectPayments(paymentModalId))
+      : null;
+    if (remaining != null && amount > remaining) {
+      const msg = t('project.paymentExceedsRemaining').replace('{amount}', formatPrice(remaining));
+      setError(msg);
+      showToast('error', msg);
+      return;
+    }
+
+    setFormBusy(true);
+    setError('');
+    try {
+      await apiFetch('/api/payments', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId: paymentModalId,
+          amount,
+          note: paymentNote.trim() || undefined,
+        }),
+      });
+      setPaymentModalId(null);
+      setPaymentAmount('');
+      setPaymentNote('');
+      await loadData({ silent: true });
+      showToast('success', t('toast.saved'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t('common.error');
+      setError(msg);
+      showToast('error', msg);
+    } finally {
+      setFormBusy(false);
+    }
+  }
+
+  async function handleSaveReturnReason(projectId: string) {
+    if (!returnReasonDraft.trim() || formBusy) return;
+    setFormBusy(true);
+    setError('');
+    try {
+      await apiFetch('/api/projects', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: projectId, notes: returnReasonDraft.trim() }),
+      });
+      setReturnReasonEditId(null);
+      setReturnReasonDraft('');
       await loadData({ silent: true });
       showToast('success', t('toast.saved'));
     } catch (err) {
@@ -266,7 +424,7 @@ function AdminProjectsPageContent() {
       });
       setReturnId(null);
       setReturnNote('');
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.returned'));
       await loadData({ silent: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.error');
@@ -385,8 +543,9 @@ function AdminProjectsPageContent() {
 
       <div className="ui-segment-tabs">
         {([
-          ['active', t('admin.inProgress'), tabCounts.active],
           ['pending', t('admin.pending'), tabCounts.pending],
+          ['active', t('admin.inProgress'), tabCounts.active],
+          ['review', t('admin.pendingReview'), tabCounts.review],
           ['completed', t('admin.completed'), tabCounts.completed],
         ] as const).map(([key, label, count]) => (
           <button
@@ -395,6 +554,7 @@ function AdminProjectsPageContent() {
             onClick={() => selectTab(key)}
             className={cn('ui-segment-tab', tab === key ? 'ui-segment-tab-active' : 'ui-segment-tab-inactive')}
           >
+            <ProjectTabIcon tab={key} active={tab === key} />
             <span className="ui-segment-tab-label">{label}</span>
             <span className="ui-segment-tab-count">· {count}</span>
           </button>
@@ -432,18 +592,41 @@ function AdminProjectsPageContent() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="ui-card-stack">
           {filtered.map((project) => {
-            const worker = workers.find((w) => w.id === project.assignedTo);
+            const worker = project.assignedTo ? workersById.get(project.assignedTo) : undefined;
             return (
               <ProjectCard
                 key={project.id}
                 variant="wide"
                 project={project}
                 workerName={worker?.name}
-                comments={comments.filter((c) => c.projectId === project.id)}
+                comments={commentsByProject.get(project.id) ?? []}
+                payments={projectPayments(project.id)}
+                rejectionCount={rejectionCountFor(project.id)}
                 showActions
                 isAdmin
+                onAddPayment={(id) => {
+                  setPaymentModalId(id);
+                  setPaymentAmount('');
+                  setPaymentNote('');
+                  setError('');
+                }}
+                onResubmit={handleResubmit}
+                returnReasonEditing={returnReasonEditId === project.id}
+                returnReasonDraft={returnReasonEditId === project.id ? returnReasonDraft : ''}
+                onReturnReasonDraftChange={setReturnReasonDraft}
+                onSaveReturnReason={handleSaveReturnReason}
+                onStartReturnReasonEdit={(id) => {
+                  const p = projects.find((pr) => pr.id === id);
+                  setReturnReasonEditId(id);
+                  setReturnReasonDraft(p?.notes?.trim() ?? '');
+                }}
+                onCancelReturnReasonEdit={() => {
+                  setReturnReasonEditId(null);
+                  setReturnReasonDraft('');
+                }}
+                returnReasonSaving={formBusy}
                 onAssign={(id) => {
                   setAssignModal(id);
                   setSelectedWorker(workers[0]?.id ?? '');
@@ -451,6 +634,7 @@ function AdminProjectsPageContent() {
                 onEdit={openEdit}
                 onDelete={(id) => setDeleteId(id)}
                 onReturn={(id) => setReturnId(id)}
+                onApprove={handleApprove}
                 onReassign={openReassign}
                 onUnassign={(id) => setUnassignId(id)}
                 onComment={(id) => {
@@ -482,9 +666,9 @@ function AdminProjectsPageContent() {
         </select>
         <div className="mt-4 flex gap-2">
           <Button className="flex-1" disabled={formBusy} onClick={() => assignModal && handleAssign(assignModal)}>
-            {formBusy ? t('common.saving') : t('common.assign')}
+            {formBusy ? t('common.assigning') : t('common.assign')}
           </Button>
-          <Button variant="outline" className="flex-1" onClick={closeAssignModal}>
+          <Button variant="outline" className="flex-1" onClick={closeAssignModal} disabled={formBusy}>
             {t('common.cancel')}
           </Button>
         </div>
@@ -509,9 +693,9 @@ function AdminProjectsPageContent() {
             disabled={!reassignWorker || formBusy}
             onClick={() => reassignModal && handleReassign(reassignModal)}
           >
-            {formBusy ? t('common.saving') : t('common.assign')}
+            {formBusy ? t('common.assigning') : t('common.assign')}
           </Button>
-          <Button variant="outline" className="flex-1" onClick={closeReassignModal}>
+          <Button variant="outline" className="flex-1" onClick={closeReassignModal} disabled={formBusy}>
             {t('common.cancel')}
           </Button>
         </div>
@@ -609,9 +793,9 @@ function AdminProjectsPageContent() {
           </div>
           <div className="mt-5 flex gap-2">
             <Button type="submit" disabled={formBusy}>
-              {formBusy ? t('common.saving') : t('common.save')}
+              {formBusy ? t('common.creating') : t('common.save')}
             </Button>
-            <Button variant="outline" type="button" onClick={closeNewForm}>
+            <Button variant="outline" type="button" onClick={closeNewForm} disabled={formBusy}>
               {t('common.cancel')}
             </Button>
           </div>
@@ -741,7 +925,7 @@ function AdminProjectsPageContent() {
             variant="outline"
             className="border-orange-500/40 text-orange-600 hover:border-orange-500 hover:bg-orange-500/10 dark:text-orange-400"
           >
-            {formBusy ? t('common.saving') : `🔄 ${t('rating.returnProject')}`}
+            {formBusy ? t('common.returning') : `🔄 ${t('rating.returnProject')}`}
           </Button>
           <Button variant="outline" onClick={() => { setReturnId(null); setReturnNote(''); }}>
             {t('common.cancel')}
@@ -815,6 +999,108 @@ function AdminProjectsPageContent() {
         )}
       </Modal>
 
+      <Modal
+        open={!!paymentModalId}
+        title={t('project.addPayment')}
+        onClose={() => {
+          if (!formBusy) {
+            setPaymentModalId(null);
+            setPaymentAmount('');
+            setPaymentNote('');
+            setError('');
+          }
+        }}
+      >
+        {(() => {
+          const paymentProject = paymentModalId
+            ? projects.find((p) => p.id === paymentModalId)
+            : undefined;
+          const remaining = paymentProject
+            ? getRemainingPrice(paymentProject, projectPayments(paymentProject.id))
+            : null;
+          const amountNum = parseNumberInput(paymentAmount) ?? 0;
+          const exceeds =
+            remaining != null && amountNum > 0 && amountNum > remaining;
+          const exceedsMsg = exceeds
+            ? t('project.paymentExceedsRemaining').replace(
+                '{amount}',
+                formatPrice(remaining ?? 0),
+              )
+            : '';
+
+          return (
+            <>
+              {paymentProject && projectPayments(paymentProject.id).length > 0 && (
+                <PaymentHistoryList
+                  payments={projectPayments(paymentProject.id)}
+                  className="mb-4"
+                />
+              )}
+              {remaining != null && (
+                <p className="mb-3 text-sm text-app-muted">
+                  {t('project.paymentRemaining')}:{' '}
+                  <span className="font-semibold text-app-text">{formatPrice(remaining)}</span>
+                </p>
+              )}
+              <NumberInput
+                label={t('project.paymentAmount')}
+                value={paymentAmount}
+                onChange={(v) => {
+                  setPaymentAmount(v);
+                  if (error) setError('');
+                }}
+              />
+              {remaining != null && remaining > 0 && (
+                <button
+                  type="button"
+                  className="ui-link-btn mt-2 text-sm"
+                  disabled={formBusy}
+                  onClick={() => {
+                    setPaymentAmount(String(remaining));
+                    if (error) setError('');
+                  }}
+                >
+                  {t('project.payRemainingFull')}
+                </button>
+              )}
+              {(exceeds || error) && (
+                <p className="mt-2 text-sm text-deadline-red" role="alert">
+                  {exceedsMsg || error}
+                </p>
+              )}
+              <Input
+                label={t('project.paymentNote')}
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder={t('project.paymentNotePlaceholder')}
+                className="mt-3"
+              />
+              <div className="mt-4 flex gap-2">
+                <Button
+                  className="flex-1"
+                  disabled={formBusy || !paymentAmount.trim() || exceeds}
+                  onClick={handleAddPayment}
+                >
+                  {formBusy ? t('common.saving') : t('common.save')}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={formBusy}
+                  onClick={() => {
+                    setPaymentModalId(null);
+                    setPaymentAmount('');
+                    setPaymentNote('');
+                    setError('');
+                  }}
+                >
+                  {t('common.cancel')}
+                </Button>
+              </div>
+            </>
+          );
+        })()}
+      </Modal>
+
       {/* Confirm delete */}
       <ConfirmModal
         open={!!deleteId}
@@ -832,6 +1118,7 @@ function AdminProjectsPageContent() {
         title={t('workerProfile.unassign')}
         message={t('workerProfile.confirmUnassign')}
         confirmLabel={t('workerProfile.unassign')}
+        confirmingLabel={t('common.unassigning')}
         variant="danger"
         onConfirm={handleUnassign}
         onCancel={() => setUnassignId(null)}

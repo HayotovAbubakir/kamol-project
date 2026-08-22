@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { StarRating } from '@/components/StarRating';
@@ -11,13 +11,14 @@ import { useToast } from '@/context/ToastContext';
 import { useAdminData } from '@/hooks/useAdminData';
 import { WorkerProfileModal } from '@/components/WorkerProfileModal';
 import { apiFetch } from '@/lib/auth';
-import { isInProgressStatus, formatWeeklyRank } from '@/lib/utils';
+import { isInProgressStatus, extractUzbekMobileDigits, formatPhoneInput, formatWeeklyRank } from '@/lib/utils';
 
 const EMPTY_WORKER = {
   firstName: '',
   lastName: '',
   username: '',
   password: '',
+  phone: '',
 };
 
 function splitName(name: string) {
@@ -33,21 +34,54 @@ export default function AdminWorkersPage() {
   const { showToast } = useToast();
   const { projects, workers, leaderboard, allRatings, loading, error, setError, loadData } = useAdminData();
 
-  const sortedWorkers = [...workers].sort((a, b) => {
-    const aIdx = leaderboard.findIndex((l) => l.workerId === a.id);
-    const bIdx = leaderboard.findIndex((l) => l.workerId === b.id);
-    const aOrder = aIdx === -1 ? 999 : aIdx;
-    const bOrder = bIdx === -1 ? 999 : bIdx;
-    return aOrder - bOrder;
-  });
+  const leaderboardOrder = useMemo(() => {
+    const map = new Map<string, number>();
+    leaderboard.forEach((entry, idx) => map.set(entry.workerId, idx));
+    return map;
+  }, [leaderboard]);
 
-  const leaderId = leaderboard.find((e) => e.weeklyRank === 1)?.workerId ?? null;
+  const sortedWorkers = useMemo(
+    () =>
+      [...workers].sort((a, b) => {
+        const aOrder = leaderboardOrder.get(a.id) ?? 999;
+        const bOrder = leaderboardOrder.get(b.id) ?? 999;
+        return aOrder - bOrder;
+      }),
+    [workers, leaderboardOrder],
+  );
+
+  const leaderId = useMemo(
+    () => leaderboard.find((e) => e.weeklyRank === 1)?.workerId ?? null,
+    [leaderboard],
+  );
+
+  const activeCountByWorker = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of projects) {
+      if (!p.assignedTo || !isInProgressStatus(p.status)) continue;
+      map.set(p.assignedTo, (map.get(p.assignedTo) ?? 0) + 1);
+    }
+    return map;
+  }, [projects]);
+
+  const ratingByWorker = useMemo(() => {
+    const map = new Map<string, (typeof allRatings)[number]>();
+    for (const r of allRatings) map.set(r.workerId, r);
+    return map;
+  }, [allRatings]);
+
+  const leaderboardByWorker = useMemo(() => {
+    const map = new Map<string, (typeof leaderboard)[number]>();
+    for (const l of leaderboard) map.set(l.workerId, l);
+    return map;
+  }, [leaderboard]);
   const [showForm, setShowForm] = useState(false);
   const [editWorkerId, setEditWorkerId] = useState<string | null>(null);
   const [newWorker, setNewWorker] = useState({ ...EMPTY_WORKER });
   const [editWorker, setEditWorker] = useState({ ...EMPTY_WORKER });
   const [deleteWorkerId, setDeleteWorkerId] = useState<string | null>(null);
   const [profileWorkerId, setProfileWorkerId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   function closeWorkerForm() {
     setShowForm(false);
@@ -59,14 +93,17 @@ export default function AdminWorkersPage() {
     setEditWorker({ ...EMPTY_WORKER });
   }
 
-  function openEditWorker(worker: { id: string; name: string; username: string }) {
+  function openEditWorker(worker: { id: string; name: string; username: string; phone?: string }) {
     const { firstName, lastName } = splitName(worker.name);
+    const digits = extractUzbekMobileDigits(worker.phone ?? '') ?? '';
     setEditWorkerId(worker.id);
-    setEditWorker({ firstName, lastName, username: worker.username, password: '' });
+    setEditWorker({ firstName, lastName, username: worker.username, password: '', phone: formatPhoneInput(digits) });
   }
 
   async function handleCreateWorker(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     setError('');
     try {
       await apiFetch('/api/users', {
@@ -75,21 +112,25 @@ export default function AdminWorkersPage() {
           name: `${newWorker.firstName} ${newWorker.lastName}`.trim(),
           username: newWorker.username,
           password: newWorker.password,
+          phone: newWorker.phone,
         }),
       });
       closeWorkerForm();
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.created'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.error');
       setError(msg);
       showToast('error', msg);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleUpdateWorker(e: React.FormEvent) {
     e.preventDefault();
-    if (!editWorkerId) return;
+    if (!editWorkerId || busy) return;
+    setBusy(true);
     setError('');
     try {
       const payload: {
@@ -97,10 +138,12 @@ export default function AdminWorkersPage() {
         name: string;
         username: string;
         password?: string;
+        phone?: string;
       } = {
         id: editWorkerId,
         name: `${editWorker.firstName} ${editWorker.lastName}`.trim(),
         username: editWorker.username,
+        phone: editWorker.phone,
       };
       if (editWorker.password.trim()) {
         payload.password = editWorker.password;
@@ -116,21 +159,26 @@ export default function AdminWorkersPage() {
       const msg = err instanceof Error ? err.message : t('common.error');
       setError(msg);
       showToast('error', msg);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleDeleteWorker() {
-    if (!deleteWorkerId) return;
+    if (!deleteWorkerId || busy) return;
+    setBusy(true);
     setError('');
     try {
       await apiFetch(`/api/users?id=${deleteWorkerId}`, { method: 'DELETE' });
       setDeleteWorkerId(null);
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.deleted'));
     } catch (err) {
       const msg = err instanceof Error ? err.message : t('common.error');
       setError(msg);
       showToast('error', msg);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -151,11 +199,19 @@ export default function AdminWorkersPage() {
             <Input label={t('common.firstName')} required value={newWorker.firstName} onChange={(e) => setNewWorker({ ...newWorker, firstName: e.target.value })} />
             <Input label={t('common.lastName')} required value={newWorker.lastName} onChange={(e) => setNewWorker({ ...newWorker, lastName: e.target.value })} />
             <Input label={t('common.login')} required value={newWorker.username} onChange={(e) => setNewWorker({ ...newWorker, username: e.target.value })} />
+            <Input
+              label={t('admin.phone')}
+              value={newWorker.phone}
+              onChange={(e) => setNewWorker({ ...newWorker, phone: formatPhoneInput(e.target.value) })}
+              placeholder={t('admin.phonePlaceholder')}
+            />
             <Input label={t('common.password')} type="password" required value={newWorker.password} onChange={(e) => setNewWorker({ ...newWorker, password: e.target.value })} />
           </div>
           <div className="mt-4 flex gap-2">
-            <Button type="submit">{t('common.save')}</Button>
-            <Button variant="outline" type="button" onClick={closeWorkerForm}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? t('common.creating') : t('admin.addWorker')}
+            </Button>
+            <Button variant="outline" type="button" onClick={closeWorkerForm} disabled={busy}>{t('common.cancel')}</Button>
           </div>
         </form>
       </Modal>
@@ -166,6 +222,12 @@ export default function AdminWorkersPage() {
             <Input label={t('common.firstName')} required value={editWorker.firstName} onChange={(e) => setEditWorker({ ...editWorker, firstName: e.target.value })} />
             <Input label={t('common.lastName')} required value={editWorker.lastName} onChange={(e) => setEditWorker({ ...editWorker, lastName: e.target.value })} />
             <Input label={t('common.login')} required value={editWorker.username} onChange={(e) => setEditWorker({ ...editWorker, username: e.target.value })} />
+            <Input
+              label={t('admin.phone')}
+              value={editWorker.phone}
+              onChange={(e) => setEditWorker({ ...editWorker, phone: formatPhoneInput(e.target.value) })}
+              placeholder={t('admin.phonePlaceholder')}
+            />
             <div className="sm:col-span-2">
               <Input
                 label={t('admin.newPassword')}
@@ -177,8 +239,10 @@ export default function AdminWorkersPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button type="submit">{t('common.save')}</Button>
-            <Button variant="outline" type="button" onClick={closeEditWorker}>{t('common.cancel')}</Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? t('common.saving') : t('common.save')}
+            </Button>
+            <Button variant="outline" type="button" onClick={closeEditWorker} disabled={busy}>{t('common.cancel')}</Button>
           </div>
         </form>
       </Modal>
@@ -202,11 +266,9 @@ export default function AdminWorkersPage() {
             <div className="col-span-2 text-right">{t('dashboard.actionCol')}</div>
           </div>
           {sortedWorkers.map((w) => {
-            const count = projects.filter(
-              (p) => p.assignedTo === w.id && isInProgressStatus(p.status),
-            ).length;
-            const workerRating = allRatings.find((r) => r.workerId === w.id);
-            const weeklyEntry = leaderboard.find((l) => l.workerId === w.id);
+            const count = activeCountByWorker.get(w.id) ?? 0;
+            const workerRating = ratingByWorker.get(w.id);
+            const weeklyEntry = leaderboardByWorker.get(w.id);
             const isLeader = w.id === leaderId;
             return (
               <div

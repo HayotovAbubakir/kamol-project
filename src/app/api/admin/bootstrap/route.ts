@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { maybeSyncDeadlineNotifications } from '@/lib/notifications';
+import { maybeSettleMonthlyWinners } from '@/lib/monthlyWinners';
 import { getWorkerRating, getWeeklyRanks } from '@/lib/rating';
 import { readStore, writeStore } from '@/lib/store';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
@@ -19,10 +20,13 @@ export async function GET(request: NextRequest) {
   try {
     let store = await readStore();
     const synced = maybeSyncDeadlineNotifications(store);
-    if (synced.changed) {
-      await writeStore(synced.store, { tables: ['notifications'] });
+    const settled = await maybeSettleMonthlyWinners(synced.store);
+    if (synced.changed || settled.changed) {
+      await writeStore(settled.store, {
+        tables: ['notifications', 'monthly_winners', 'used_congrats_combos', 'monthly_settlements'],
+      });
     }
-    store = synced.store;
+    store = settled.store;
 
     const projects = [...store.projects].sort(
       (a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime(),
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
 
     const workers = store.users
       .filter((u) => u.role === 'worker')
-      .map(({ id, name, username, telegramId }) => ({ id, name, username, telegramId }));
+      .map(({ id, name, username, telegramId, phone }) => ({ id, name, username, telegramId, phone }));
 
     const notifications = store.notifications
       .filter((n) => n.userId === session!.id || n.userId === 'all')
@@ -47,6 +51,8 @@ export async function GET(request: NextRequest) {
         workers,
         notifications,
         comments,
+        payments: store.payments ?? [],
+        ratingEntries: store.ratingEntries ?? [],
         leaderboard,
         allRatings,
         pendingCount: projects.filter((p) => p.status === 'pending').length,
@@ -55,7 +61,9 @@ export async function GET(request: NextRequest) {
       },
       { headers: NO_STORE },
     );
-  } catch {
-    return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
+  } catch (err) {
+    console.error('[api/admin/bootstrap]', err);
+    const message = err instanceof Error ? err.message : 'Server xatoligi';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

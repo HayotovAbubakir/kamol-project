@@ -17,9 +17,10 @@ export default function AdminDashboardPage() {
   const {
     projects,
     workers,
+    payments,
     notifications,
     loading,
-    loadData,
+    updateNotifications,
     pendingCount,
     activeCount,
     completedCount,
@@ -28,22 +29,30 @@ export default function AdminDashboardPage() {
   const session = getSession();
 
   async function markRead(id: string) {
-    await apiFetch('/api/notifications', {
-      method: 'PATCH',
-      body: JSON.stringify({ id }),
-    });
-    await loadData({ silent: true });
-    notifyNotificationsUpdated();
+    updateNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await apiFetch('/api/notifications', {
+        method: 'PATCH',
+        body: JSON.stringify({ id }),
+      });
+      notifyNotificationsUpdated();
+    } catch {
+      updateNotifications(notifications);
+    }
   }
 
   async function markAllRead() {
     if (!session) return;
-    await apiFetch('/api/notifications', {
-      method: 'PATCH',
-      body: JSON.stringify({ markAllRead: true, userId: session.id }),
-    });
-    await loadData({ silent: true });
-    notifyNotificationsUpdated();
+    updateNotifications(notifications.map((n) => (n.read ? n : { ...n, read: true })));
+    try {
+      await apiFetch('/api/notifications', {
+        method: 'PATCH',
+        body: JSON.stringify({ markAllRead: true, userId: session.id }),
+      });
+      notifyNotificationsUpdated();
+    } catch {
+      updateNotifications(notifications);
+    }
   }
 
   if (loading) {
@@ -73,7 +82,7 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-1.5 sm:grid-cols-4">
+      <div className="ui-stat-grid shrink-0">
         <StatCard
           compact
           label={t('admin.activeProjects')}
@@ -105,11 +114,11 @@ export default function AdminDashboardPage() {
       </div>
 
       <div className="dashboard-bottom">
-        <div className="min-h-0 overflow-hidden lg:col-span-2">
-          <DashboardAnalytics projects={projects} workers={workers} compact />
+        <div className="dashboard-analytics-wrap min-h-0 overflow-hidden lg:col-span-2">
+          <DashboardAnalytics projects={projects} workers={workers} payments={payments} compact />
         </div>
 
-        <div className="min-h-0 overflow-hidden">
+        <div className="dashboard-notifications-wrap min-h-0 overflow-hidden">
           <NotificationsPanel
             embedded
             compact
@@ -117,6 +126,11 @@ export default function AdminDashboardPage() {
             onMarkRead={markRead}
             onMarkAllRead={markAllRead}
           />
+          <div className="mt-2 flex justify-end">
+            <Link href="/admin/notifications" className="ui-link-btn text-xs">
+              {t('dashboard.viewAll')} →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

@@ -3,13 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { readStore, writeStore } from '@/lib/store';
 import { maybeSyncDeadlineNotifications } from '@/lib/notifications';
 import { getSessionFromRequest, requireAdmin, requireAuth } from '@/lib/session';
-import { createRatingEntry } from '@/lib/rating';
+import { applyReturnRatingEntries, createRatingEntry, getWorkerRating, notifyStarRatingChange } from '@/lib/rating';
 import { getWorkerName } from '@/lib/notificationHelpers';
-import { isInProgressStatus, isTerminalStatus, normalizePhone, sortReturnedProjects, sortWorkerActiveProjects, validateProjectPricing } from '@/lib/utils';
-import { upsertProjectComment } from '@/lib/comments';
+import { isInProgressStatus, isTerminalStatus, isWorkerCompletedStatus, isWorkerLockedStatus, formatAddress, normalizePhone, parseOptionalNumber, sortReturnedProjects, sortWorkerActiveProjects, validateProjectPricing } from '@/lib/utils';
+import { ensureAdvancePayment } from '@/lib/payments';
+import { upsertProjectComment, replaceAdminCommentRating } from '@/lib/comments';
 import type { Project, ProjectStatus } from '@/types';
 
 export async function GET(request: NextRequest) {
+  const session = await getSessionFromRequest(request);
+  if (!requireAuth(session)) {
+    return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 401 });
+  }
+
   try {
     let store = await readStore();
     const synced = maybeSyncDeadlineNotifications(store);
@@ -18,20 +24,26 @@ export async function GET(request: NextRequest) {
     }
     store = synced.store;
 
-    const session = await getSessionFromRequest(request);
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    const role = searchParams.get('role');
     const status = searchParams.get('status');
+
+    // Workers may only see their own projects, regardless of what they ask for.
+    const isAdmin = requireAdmin(session);
+    const effectiveRole = isAdmin ? searchParams.get('role') : 'worker';
+    const effectiveUserId = isAdmin ? searchParams.get('userId') : session!.id;
 
     let projects = [...store.projects];
 
-    if (role === 'worker' && userId) {
-      projects = projects.filter((p) => p.assignedTo === userId);
+    if (effectiveRole === 'worker' && effectiveUserId) {
+      projects = projects.filter((p) => p.assignedTo === effectiveUserId);
     }
 
     if (status === 'completed') {
-      projects = projects.filter((p) => p.status === 'completed');
+      projects = projects.filter((p) =>
+        isAdmin ? p.status === 'completed' : isWorkerCompletedStatus(p.status),
+      );
+    } else if (status === 'review') {
+      projects = projects.filter((p) => p.status === 'pending_review');
     } else if (status === 'finished') {
       projects = projects.filter((p) => p.status === 'completed' || p.status === 'returned');
     } else if (status === 'returned') {
@@ -70,18 +82,26 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const store = await readStore();
 
+    const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
+    const address = typeof body.address === 'string' ? body.address.trim() : '';
+    if (!clientName || !address) {
+      return NextResponse.json({ error: 'Ism va manzil kiritilishi shart' }, { status: 400 });
+    }
+
     const project: Project = {
       id: uuidv4(),
-      title: body.title || body.clientName,
-      clientName: body.clientName,
-      address: body.address,
+      title: (typeof body.title === 'string' && body.title.trim()) || clientName,
+      clientName,
+      address,
       phone: normalizePhone(body.phone) || undefined,
-      price: body.price ? Number(body.price) : undefined,
+      price: parseOptionalNumber(body.price),
       advancePaid: !!body.advancePaid,
-      advanceAmount: body.advancePaid && body.advanceAmount ? Number(body.advanceAmount) : undefined,
+      advanceAmount: body.advancePaid ? parseOptionalNumber(body.advanceAmount) : undefined,
       orderDate: new Date().toISOString(),
       status: 'pending',
-      description: body.description || undefined,
+      description: typeof body.description === 'string' && body.description.trim()
+        ? body.description.trim()
+        : undefined,
     };
 
     const pricingError = validateProjectPricing(project);
@@ -90,8 +110,9 @@ export async function POST(request: NextRequest) {
     }
 
     store.projects.push(project);
+    ensureAdvancePayment(store, project);
 
-    await writeStore(store, { tables: ['projects'] });
+    await writeStore(store, { tables: ['projects', 'payments'] });
     return NextResponse.json({ project });
   } catch {
     return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
@@ -115,6 +136,26 @@ export async function PATCH(request: NextRequest) {
 
     const project = store.projects[idx];
 
+    if (body.action === 'resubmit') {
+      if (session!.role !== 'admin') {
+        return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
+      }
+      if (!project.returnedAt) {
+        return NextResponse.json({ error: 'Faqat qaytarilgan loyiha qayta topshiriladi' }, { status: 400 });
+      }
+
+      store.projects[idx] = {
+        ...project,
+        status: 'in_progress',
+        assignedAt: new Date().toISOString(),
+        returnedAt: undefined,
+        completedAt: undefined,
+      };
+
+      await writeStore(store, { tables: ['projects'] });
+      return NextResponse.json({ project: store.projects[idx] });
+    }
+
     if (session!.role === 'worker' && project.assignedTo !== session!.id) {
       return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
     }
@@ -137,32 +178,56 @@ export async function PATCH(request: NextRequest) {
       updates.completedAt = undefined;
       updates.notes = body.notes.trim();
     } else if (body.status) {
-      if (session!.role === 'worker' && body.status !== 'completed') {
-        return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
-      }
-      if (isTerminalStatus(project.status) && body.status !== project.status) {
-        return NextResponse.json({ error: 'Bu loyiha holati o\'zgartirilmaydi' }, { status: 400 });
-      }
-      updates.status = body.status as ProjectStatus;
-      if (body.status === 'completed') {
+      if (session!.role === 'worker') {
+        if (body.status !== 'completed') {
+          return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
+        }
+        if (!isInProgressStatus(project.status)) {
+          return NextResponse.json({ error: 'Bu loyihani tugatib bo\'lmaydi' }, { status: 400 });
+        }
+        updates.status = 'pending_review';
         updates.completedAt = new Date().toISOString();
-        updates.returnedAt = undefined;
-      } else if (isTerminalStatus(body.status)) {
-        updates.completedAt = new Date().toISOString();
+      } else {
+        if (body.status === 'completed') {
+          if (project.status !== 'pending_review') {
+            return NextResponse.json(
+              { error: 'Faqat ko\'rib chiqilishi kerak bo\'lgan loyihani tasdiqlash mumkin' },
+              { status: 400 },
+            );
+          }
+          updates.status = 'completed';
+          updates.completedAt = project.completedAt ?? new Date().toISOString();
+          updates.returnedAt = undefined;
+        } else {
+          if (isWorkerLockedStatus(project.status) && body.status !== project.status) {
+            return NextResponse.json({ error: 'Bu loyiha holati o\'zgartirilmaydi' }, { status: 400 });
+          }
+          if (isTerminalStatus(project.status) && body.status !== project.status) {
+            return NextResponse.json({ error: 'Bu loyiha holati o\'zgartirilmaydi' }, { status: 400 });
+          }
+          updates.status = body.status as ProjectStatus;
+          if (isTerminalStatus(body.status)) {
+            updates.completedAt = new Date().toISOString();
+          }
+        }
       }
     }
 
     if (body.notes !== undefined && !isReturnAction) {
       if (session!.role === 'worker') {
-        // Ishchi izohi qaytarish sababini o'chirmasligi uchun description ga yoziladi
-        updates.description = typeof body.notes === 'string' ? body.notes.trim() : '';
-      } else {
-        updates.notes = typeof body.notes === 'string' ? body.notes.trim() : body.notes;
+        return NextResponse.json(
+          { error: 'Ishchi izohi faqat qaytarilgan loyiha sahifasidan yuboriladi' },
+          { status: 403 },
+        );
       }
+      updates.notes = typeof body.notes === 'string' ? body.notes.trim() : body.notes;
     }
 
     if (body.description !== undefined) {
-      if (session!.role === 'admin' || session!.role === 'worker') {
+      if (session!.role === 'worker') {
+        return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
+      }
+      if (session!.role === 'admin') {
         updates.description = body.description;
       }
     }
@@ -172,14 +237,14 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (session!.role === 'admin') {
-      if (body.title) updates.title = body.title;
-      if (body.clientName) updates.clientName = body.clientName;
-      if (body.address) updates.address = body.address;
+      if (typeof body.title === 'string' && body.title.trim()) updates.title = body.title.trim();
+      if (typeof body.clientName === 'string' && body.clientName.trim()) updates.clientName = body.clientName.trim();
+      if (typeof body.address === 'string' && body.address.trim()) updates.address = body.address.trim();
       if (body.phone !== undefined) updates.phone = normalizePhone(body.phone) || undefined;
-      if (body.price !== undefined) updates.price = body.price ? Number(body.price) : undefined;
+      if (body.price !== undefined) updates.price = parseOptionalNumber(body.price);
       if (body.advancePaid !== undefined) updates.advancePaid = !!body.advancePaid;
       if (body.advanceAmount !== undefined) {
-        updates.advanceAmount = body.advanceAmount ? Number(body.advanceAmount) : undefined;
+        updates.advanceAmount = parseOptionalNumber(body.advanceAmount);
       }
       if (updates.advancePaid === false) {
         updates.advanceAmount = undefined;
@@ -207,19 +272,38 @@ export async function PATCH(request: NextRequest) {
       delete store.projects[idx].returnedAt;
     }
     const updated = store.projects[idx];
-    const statusChanged = isReturnAction || (body.status && body.status !== project.status);
+    ensureAdvancePayment(store, updated);
+    const statusChanged = isReturnAction || (body.status && (
+      session!.role === 'worker' && body.status === 'completed'
+        ? project.status !== 'pending_review'
+        : body.status !== project.status
+    ));
 
-    if (statusChanged && isTerminalStatus(updated.status) && updated.assignedTo && !isReturnAction) {
+    if (statusChanged && updated.status === 'completed' && updated.assignedTo && !isReturnAction) {
       if (!store.ratingEntries) store.ratingEntries = [];
-      store.ratingEntries.push(createRatingEntry(updated, store));
+      const workerId = updated.assignedTo;
+      // Idempotency: avoid duplicate completion entries for the same project
+      // if two near-simultaneous requests both flip the status to completed.
+      const alreadyRated = store.ratingEntries.some(
+        (e) =>
+          e.projectId === updated.id &&
+          e.workerId === workerId &&
+          e.type === 'completion',
+      );
+      if (!alreadyRated) {
+        const prevRating = getWorkerRating(workerId, store.ratingEntries).rating;
+        const ratingProject =
+          body.status === 'completed' && project.returnedAt
+            ? { ...updated, returnedAt: project.returnedAt }
+            : updated;
+        store.ratingEntries.push(createRatingEntry(ratingProject, store));
+        notifyStarRatingChange(store, workerId, prevRating);
+      }
     }
 
     if (isReturnAction && updated.assignedTo) {
-      if (!store.ratingEntries) store.ratingEntries = [];
-      store.ratingEntries = store.ratingEntries.filter((e) => e.projectId !== updated.id);
-      store.ratingEntries.push(
-        createRatingEntry({ ...updated, status: 'returned' }, store),
-      );
+      const prevRating = getWorkerRating(updated.assignedTo, store.ratingEntries ?? []).rating;
+      applyReturnRatingEntries(store, updated);
 
       upsertProjectComment(store, {
         projectId: updated.id,
@@ -228,6 +312,8 @@ export async function PATCH(request: NextRequest) {
         text: body.notes.trim(),
         sentiment: 'negative',
       });
+      replaceAdminCommentRating(store, updated.id, updated.assignedTo, 'negative');
+      notifyStarRatingChange(store, updated.assignedTo, prevRating);
 
       const workerName = getWorkerName(store.users, updated.assignedTo) ?? 'Ishchi';
       const admin = store.users.find((u) => u.role === 'admin');
@@ -235,7 +321,7 @@ export async function PATCH(request: NextRequest) {
       store.notifications.unshift({
         id: uuidv4(),
         userId: updated.assignedTo,
-        message: `Loyiha qaytarildi: ${updated.clientName} — ${body.notes.trim()}`,
+        message: `Loyiha qaytarildi: ${formatAddress(updated)} — ${body.notes.trim()}`,
         createdAt: new Date().toISOString(),
         read: false,
         type: 'warning',
@@ -247,7 +333,7 @@ export async function PATCH(request: NextRequest) {
         store.notifications.unshift({
           id: uuidv4(),
           userId: admin.id,
-          message: `${updated.clientName} qaytarildi — ${updated.address} · Ishchi: ${workerName} · ${body.notes.trim()}`,
+          message: `${formatAddress(updated)} qaytarildi · Ishchi: ${workerName} · ${body.notes.trim()}`,
           createdAt: new Date().toISOString(),
           read: false,
           type: 'warning',
@@ -257,14 +343,30 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    if (statusChanged && body.status === 'completed') {
+    if (statusChanged && updated.status === 'pending_review' && updated.assignedTo) {
+      const workerName = getWorkerName(store.users, updated.assignedTo) ?? 'Ishchi';
+      for (const admin of store.users.filter((u) => u.role === 'admin')) {
+        store.notifications.unshift({
+          id: uuidv4(),
+          userId: admin.id,
+          message: `${formatAddress(updated)} ko'rib chiqish uchun · Ishchi: ${workerName}`,
+          createdAt: new Date().toISOString(),
+          read: false,
+          type: 'info',
+          event: 'project_completed',
+          projectId: updated.id,
+        });
+      }
+    }
+
+    if (statusChanged && updated.status === 'completed' && project.status === 'pending_review') {
       const admin = store.users.find((u) => u.role === 'admin');
       if (admin) {
         const workerName = getWorkerName(store.users, updated.assignedTo) ?? 'Ishchi';
         store.notifications.unshift({
           id: uuidv4(),
           userId: admin.id,
-          message: `${updated.clientName} tugallandi — ${updated.address} · Ishchi: ${workerName}`,
+          message: `${formatAddress(updated)} tugallandi · Ishchi: ${workerName}`,
           createdAt: new Date().toISOString(),
           read: false,
           type: 'info',
@@ -275,7 +377,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     await writeStore(store, {
-      tables: ['projects', 'notifications', 'rating_entries', 'project_comments'],
+      tables: ['projects', 'notifications', 'rating_entries', 'project_comments', 'payments'],
     });
     return NextResponse.json({ project: store.projects[idx] });
   } catch {
@@ -299,8 +401,10 @@ export async function DELETE(request: NextRequest) {
     store.notifications = store.notifications.filter((n) => n.projectId !== id);
     store.ratingEntries = (store.ratingEntries ?? []).filter((r) => r.projectId !== id);
     store.comments = (store.comments ?? []).filter((c) => c.projectId !== id);
+    store.payments = (store.payments ?? []).filter((p) => p.projectId !== id);
+    store.workerReplies = (store.workerReplies ?? []).filter((r) => r.projectId !== id);
     await writeStore(store, {
-      tables: ['projects', 'notifications', 'rating_entries', 'project_comments'],
+      tables: ['projects', 'notifications', 'rating_entries', 'project_comments', 'payments', 'worker_replies'],
     });
 
     return NextResponse.json({ ok: true });

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/auth';
+import { playNotificationSound } from '@/lib/notificationSound';
 import type { AppNotification } from '@/types';
 
 const POLL_MS = 5000;
@@ -11,8 +12,14 @@ export function useNotificationPoll(
   userId: string | undefined,
   onUpdate: (notifications: AppNotification[]) => void,
 ) {
+  // Track known notification ids across polls to detect new arrivals.
+  const knownIdsRef = useRef<Set<string> | null>(null);
+
   useEffect(() => {
     if (!userId) return;
+
+    // Reset known-ids state when the user id changes (login/logout).
+    knownIdsRef.current = null;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -28,7 +35,21 @@ export function useNotificationPoll(
         const res = await apiFetch<{ notifications: AppNotification[] }>(
           `/api/notifications?userId=${userId}`,
         );
-        if (!cancelled) onUpdate(res.notifications);
+        if (!cancelled) {
+          const items = res.notifications ?? [];
+          // First poll: seed the known set without playing any sound (existing
+          // notifications aren't "new" from the user's perspective).
+          if (knownIdsRef.current === null) {
+            knownIdsRef.current = new Set(items.map((n) => n.id));
+          } else {
+            const known = knownIdsRef.current;
+            const arrivals = items.filter((n) => !known.has(n.id));
+            const hasUnreadArrival = arrivals.some((n) => !n.read);
+            for (const n of arrivals) known.add(n.id);
+            if (hasUnreadArrival) playNotificationSound();
+          }
+          onUpdate(items);
+        }
       } catch {
         // ignore
       }

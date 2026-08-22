@@ -1,12 +1,18 @@
 import type {
   AppNotification,
   CommentSentiment,
+  MonthlySettlement,
+  MonthlyWinner,
+  MonthlyWinnerView,
   NotificationEvent,
   NotificationType,
   Project,
   ProjectComment,
   ProjectStatus,
+  Payment,
   RatingEntry,
+  UsedCongratsCombo,
+  WorkerReply,
   RatingEntryType,
   User,
   UserRole,
@@ -20,6 +26,7 @@ export interface DbUser {
   name: string;
   role: UserRole;
   telegram_id: string | null;
+  phone?: string | null;
 }
 
 export interface DbProject {
@@ -86,6 +93,7 @@ export function userFromDb(row: DbUser): User {
     name: row.name,
     role: row.role,
     telegramId: row.telegram_id ?? undefined,
+    phone: normalizePhone(row.phone ?? undefined),
   };
 }
 
@@ -97,6 +105,7 @@ export function userToDb(user: User): DbUser {
     name: user.name,
     role: user.role,
     telegram_id: user.telegramId ?? null,
+    phone: user.phone ?? null,
   };
 }
 
@@ -214,4 +223,157 @@ export function commentToDb(c: ProjectComment): DbComment {
     created_at: c.createdAt,
     updated_at: c.updatedAt ?? null,
   };
+}
+
+export interface DbPayment {
+  id: string;
+  project_id: string;
+  amount: number;
+  paid_at: string;
+  note: string | null;
+}
+
+export function paymentFromDb(row: DbPayment): Payment {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    amount: row.amount,
+    paidAt: row.paid_at,
+    note: row.note ?? undefined,
+  };
+}
+
+export function paymentToDb(payment: Payment): DbPayment {
+  return {
+    id: payment.id,
+    project_id: payment.projectId,
+    amount: payment.amount,
+    paid_at: payment.paidAt,
+    note: payment.note ?? null,
+  };
+}
+
+export interface DbWorkerReply {
+  id: string;
+  project_id: string;
+  worker_id: string;
+  message: string;
+  created_at: string;
+}
+
+export function workerReplyFromDb(row: DbWorkerReply): WorkerReply {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    workerId: row.worker_id,
+    message: row.message,
+    createdAt: row.created_at,
+  };
+}
+
+export function workerReplyToDb(reply: WorkerReply): DbWorkerReply {
+  return {
+    id: reply.id,
+    project_id: reply.projectId,
+    worker_id: reply.workerId,
+    message: reply.message,
+    created_at: reply.createdAt,
+  };
+}
+
+export interface DbMonthlyWinner {
+  id: string;
+  worker_id: string;
+  month: string;
+  rank: number;
+  total_points: number;
+  created_at: string;
+}
+
+export function monthlyWinnerFromDb(row: DbMonthlyWinner): MonthlyWinner {
+  return {
+    id: row.id,
+    workerId: row.worker_id,
+    month: row.month,
+    rank: row.rank as 1 | 2 | 3,
+    totalPoints: row.total_points,
+    createdAt: row.created_at,
+  };
+}
+
+export function monthlyWinnerToDb(row: MonthlyWinner): DbMonthlyWinner {
+  return {
+    id: row.id,
+    worker_id: row.workerId,
+    month: row.month,
+    rank: row.rank,
+    total_points: row.totalPoints,
+    created_at: row.createdAt,
+  };
+}
+
+export interface DbUsedCongrats {
+  id: string;
+  worker_id: string;
+  rank: number;
+  a_index: number;
+  b_index: number;
+  c_index: number;
+  month: string;
+  created_at: string;
+}
+
+export function usedCongratsFromDb(row: DbUsedCongrats): UsedCongratsCombo {
+  return {
+    id: row.id,
+    workerId: row.worker_id,
+    rank: row.rank as 1 | 2 | 3,
+    aIndex: row.a_index,
+    bIndex: row.b_index,
+    cIndex: row.c_index,
+    month: row.month,
+    createdAt: row.created_at,
+  };
+}
+
+export function usedCongratsToDb(row: UsedCongratsCombo): DbUsedCongrats {
+  return {
+    id: row.id,
+    worker_id: row.workerId,
+    rank: row.rank,
+    a_index: row.aIndex,
+    b_index: row.bIndex,
+    c_index: row.cIndex,
+    month: row.month,
+    created_at: row.createdAt,
+  };
+}
+
+export interface DbMonthlySettlement {
+  id: string;
+  month: string;
+  settled_at: string;
+}
+
+export function monthlySettlementFromDb(row: DbMonthlySettlement): MonthlySettlement {
+  return { id: row.id, month: row.month, settledAt: row.settled_at };
+}
+
+export function monthlySettlementToDb(row: MonthlySettlement): DbMonthlySettlement {
+  return { id: row.id, month: row.month, settled_at: row.settledAt };
+}
+
+export interface DbMonthlyWinnerView {
+  id: string;
+  worker_id: string;
+  month: string;
+  seen_at: string;
+}
+
+export function monthlyWinnerViewFromDb(row: DbMonthlyWinnerView): MonthlyWinnerView {
+  return { id: row.id, workerId: row.worker_id, month: row.month, seenAt: row.seen_at };
+}
+
+export function monthlyWinnerViewToDb(row: MonthlyWinnerView): DbMonthlyWinnerView {
+  return { id: row.id, worker_id: row.workerId, month: row.month, seen_at: row.seenAt };
 }

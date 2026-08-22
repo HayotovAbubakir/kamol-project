@@ -20,20 +20,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [opened, setOpened] = useState(false);
-  const [stats, setStats] = useState({ projects: 0, workers: 0 });
 
   useEffect(() => {
     const session = getSession();
     if (session) {
       router.replace(session.role === 'admin' ? '/admin' : '/worker');
-      return;
     }
-
-    apiFetch<{ projects: number; workers: number }>('/api/stats', {
-      cache: 'no-store',
-    })
-      .then((data) => setStats(data))
-      .catch(() => {});
   }, [router]);
 
   useEffect(() => {
@@ -73,16 +65,16 @@ export default function LoginPage() {
     <div className="relative h-dvh max-h-dvh overflow-hidden bg-app-bg text-app-text">
       <DustField />
 
-      <section className="relative z-10 flex h-full items-center justify-center px-4 py-4">
-        <div className="book-stage w-full max-w-4xl">
+      <section className="relative z-10 flex h-full items-center justify-center px-3 py-3 xs:px-4 sm:px-6 sm:py-4">
+        <div className="book-stage w-full max-w-4xl tv:max-w-5xl uhd:max-w-6xl">
           <div className={cn('book relative mx-auto w-full', opened && 'is-open')}>
-            <div className="book-shell relative h-[min(620px,calc(100dvh-1.5rem))] w-full overflow-hidden rounded-[28px] bg-app-card shadow-[0_28px_80px_rgba(29,39,32,0.18)] dark:ring-1 dark:ring-metallic-green/20">
+            <div className="book-shell relative h-[min(620px,calc(100dvh-1rem))] w-full overflow-hidden rounded-[22px] bg-app-card shadow-[0_28px_80px_rgba(29,39,32,0.18)] dark:ring-1 dark:ring-metallic-green/20 sm:rounded-[28px] sm:h-[min(620px,calc(100dvh-1.5rem))] tv:h-[min(700px,calc(100dvh-3rem))]">
               <span className="book-spine" aria-hidden />
               <span className="book-page-stack" aria-hidden />
 
               <div className="book-pages absolute inset-0">
               <div className="grid h-full min-h-0 max-lg:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-2">
-                <article className="flex min-h-0 flex-col border-b border-app-border p-6 sm:p-7 lg:border-b-0 lg:border-r lg:p-8">
+                <article className="flex min-h-0 flex-col border-b border-app-border p-5 xs:p-6 sm:p-7 lg:border-b-0 lg:border-r lg:p-8 tv:p-10">
                   <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.22em] text-app-accent">
                     {t('login.badge')}
                   </p>
@@ -92,27 +84,10 @@ export default function LoginPage() {
                       <Logo size="lg" tone="dark" className="login-brand-mark" />
                     </div>
                   </div>
-
-                  <div className="grid shrink-0 grid-cols-2 gap-2 pb-1 sm:gap-3">
-                    {[
-                      { label: t('login.statsProjects'), value: stats.projects },
-                      { label: t('login.statsWorkers'), value: stats.workers },
-                    ].map((stat) => (
-                      <div
-                        key={stat.label}
-                        className="rounded-xl bg-app-card-soft px-2 py-2.5 text-center sm:rounded-2xl sm:p-3 dark:bg-[#111] dark:ring-1 dark:ring-metallic-green/15"
-                      >
-                        <p className="font-display text-xl font-bold text-app-accent sm:text-2xl">{stat.value}</p>
-                        <p className="mt-0.5 text-[10px] uppercase leading-tight tracking-wide text-app-muted sm:text-[11px]">
-                          {stat.label}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
                 </article>
 
-                <article className="flex min-h-0 flex-col justify-center p-6 sm:p-7 lg:p-8">
-                  <h2 className="font-display text-2xl font-bold sm:text-3xl">{t('login.title')}</h2>
+                <article className="flex min-h-0 flex-col justify-center p-5 xs:p-6 sm:p-7 lg:p-8 tv:p-10">
+                  <h2 className="font-display text-xl font-bold xs:text-2xl sm:text-3xl tv:text-4xl">{t('login.title')}</h2>
                   <p className="mt-2 text-sm text-app-muted">{t('login.hint')}</p>
 
                   <form onSubmit={handleSubmit} className="mt-6 space-y-4 sm:mt-7">

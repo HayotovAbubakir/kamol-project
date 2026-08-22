@@ -15,7 +15,7 @@ function Bone({ className }: { className?: string }) {
 
 export function SkeletonCard() {
   return (
-    <div className="rounded-2xl border border-app-border bg-app-card p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <div className="ui-glass-card rounded-2xl p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2">
           <Bone className="h-5 w-3/4" />
@@ -44,7 +44,7 @@ export function SkeletonCards({ count = 4 }: { count?: number }) {
 
 export function SkeletonStat() {
   return (
-    <div className="rounded-2xl border border-app-border bg-app-card p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <div className="ui-glass-card rounded-2xl p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <Bone className="h-3 w-20" />
       <Bone className="mt-3 h-8 w-12" />
     </div>
@@ -63,7 +63,7 @@ export function SkeletonStats({ count = 4 }: { count?: number }) {
 
 export function SkeletonTable({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-app-border bg-app-card shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <div className="ui-glass-card overflow-hidden rounded-2xl shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <div className="border-b border-app-border px-5 py-3">
         <Bone className="h-3 w-full" />
       </div>
@@ -81,7 +81,7 @@ export function SkeletonTable({ rows = 4 }: { rows?: number }) {
 
 export function SkeletonNotifications() {
   return (
-    <div className="rounded-2xl border border-app-border bg-app-card p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <div className="ui-glass-card rounded-2xl p-5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
       <Bone className="mb-4 h-4 w-32" />
       <div className="space-y-3">
         {Array.from({ length: 5 }, (_, i) => (

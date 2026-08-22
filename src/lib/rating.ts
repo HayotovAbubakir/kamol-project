@@ -1,15 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 import { RATING_POINTS, MAX_STARS } from './ratingConfig';
+import { formatAddress } from '@/lib/utils';
 import type {
   DataStore,
+  MonthlyLeaderboardEntry,
   Project,
   RatingEntry,
+  RatingHistoryItem,
   WeeklyLeaderboardEntry,
   WeeklyRankEntry,
   WorkerRating,
 } from '@/types';
 
-function daysBetween(a: string, b: string): number {
+export function daysBetween(a: string, b: string): number {
   const msPerDay = 86_400_000;
   return Math.ceil((new Date(b).getTime() - new Date(a).getTime()) / msPerDay);
 }
@@ -28,12 +31,15 @@ function getWeekBounds(now: Date = new Date()): { start: Date; end: Date } {
 }
 
 export function calculatePoints(project: Project, store: DataStore): number {
-  if (project.status === 'rejected' || project.status === 'returned') return RATING_POINTS.REJECTION;
+  if (project.status === 'rejected' || project.status === 'returned') {
+    return RATING_POINTS.REJECTION;
+  }
   if (project.status !== 'completed') return 0;
 
-  const assignedAt = project.assignedAt || project.orderDate;
   const completedAt = project.completedAt!;
-  const days = daysBetween(assignedAt, completedAt);
+  // Qaytarilgandan keyin qayta topshirish — muddat qayta ishlash kunidan hisoblanadi
+  const startAt = project.returnedAt || project.assignedAt || project.orderDate;
+  const days = daysBetween(startAt, completedAt);
 
   if (days <= 1) {
     const completedDate = new Date(completedAt).toISOString().slice(0, 10);
@@ -63,11 +69,123 @@ export function createRatingEntry(project: Project, store: DataStore): RatingEnt
   };
 }
 
+export function applyReturnRatingEntries(store: DataStore, project: Project): void {
+  if (!project.assignedTo) return;
+  if (!store.ratingEntries) store.ratingEntries = [];
+
+  const workerId = project.assignedTo;
+  const related = store.ratingEntries.filter(
+    (e) => e.projectId === project.id && e.workerId === workerId,
+  );
+  const completions = related
+    .filter((e) => e.type === 'completion')
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const reversalCount = related.filter((e) => e.type === 'completion_reversed').length;
+  const unmatched = completions[completions.length - reversalCount - 1];
+
+  if (unmatched && unmatched.points !== 0) {
+    store.ratingEntries.push({
+      id: uuidv4(),
+      workerId,
+      projectId: project.id,
+      points: -unmatched.points,
+      type: 'completion_reversed',
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  store.ratingEntries.push(createRatingEntry({ ...project, status: 'returned' }, store));
+}
+
+export function notifyStarRatingChange(
+  store: DataStore,
+  workerId: string,
+  previousRating: number,
+): void {
+  const next = getWorkerRating(workerId, store.ratingEntries ?? []);
+  if (next.rating === previousRating) return;
+  store.notifications.unshift({
+    id: uuidv4(),
+    userId: workerId,
+    message: `Reytingingiz yangilandi: ${previousRating.toFixed(1)} ★ → ${next.rating.toFixed(1)} ★`,
+    createdAt: new Date().toISOString(),
+    read: false,
+    type: next.rating >= previousRating ? 'info' : 'warning',
+    event: 'rating_changed',
+  });
+}
+
+export function getWorkerRatingHistory(store: DataStore, workerId: string): RatingHistoryItem[] {
+  const entries = (store.ratingEntries ?? [])
+    .filter((e) => e.workerId === workerId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return entries.map((entry) => {
+    const project = store.projects.find((p) => p.id === entry.projectId);
+    const startAt = project?.returnedAt || project?.assignedAt || project?.orderDate;
+    const daysToComplete =
+      entry.type === 'completion' && startAt
+        ? daysBetween(startAt, entry.createdAt)
+        : undefined;
+    return {
+      id: entry.id,
+      projectId: entry.projectId,
+      projectLabel: project ? formatAddress(project) || project.title : 'Loyiha',
+      type: entry.type,
+      points: entry.points,
+      createdAt: entry.createdAt,
+      daysToComplete,
+    };
+  });
+}
+
+function monthBounds(month: string): { start: Date; end: Date } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const end = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
+export function getMonthlyLeaderboard(store: DataStore, month: string): MonthlyLeaderboardEntry[] {
+  const bounds = monthBounds(month);
+  if (!bounds) return [];
+
+  const pointsByWorker = new Map<string, number>();
+  for (const entry of store.ratingEntries ?? []) {
+    const d = new Date(entry.createdAt);
+    if (d < bounds.start || d > bounds.end) continue;
+    pointsByWorker.set(entry.workerId, (pointsByWorker.get(entry.workerId) ?? 0) + entry.points);
+  }
+
+  const workers = store.users.filter((u) => u.role === 'worker');
+  const result: MonthlyLeaderboardEntry[] = workers.map((w) => ({
+    workerId: w.id,
+    workerName: w.name,
+    monthlyPoints: pointsByWorker.get(w.id) ?? 0,
+    rank: 0,
+  }));
+
+  result.sort((a, b) => {
+    if (b.monthlyPoints !== a.monthlyPoints) return b.monthlyPoints - a.monthlyPoints;
+    return a.workerName.localeCompare(b.workerName, 'uz');
+  });
+
+  result.forEach((entry, index) => {
+    entry.rank = index + 1;
+  });
+
+  return result;
+}
+
 export function getWorkerRating(workerId: string, entries: RatingEntry[]): WorkerRating {
   const workerEntries = entries.filter((e) => e.workerId === workerId);
   const totalPoints = workerEntries.reduce((sum, e) => sum + e.points, 0);
   const totalCount = workerEntries.length;
 
+  // Reyting = jami ball / jami yozuvlar, 0..5 oralig'ida
   let rating = totalCount > 0 ? totalPoints / totalCount : 0;
   rating = Math.max(0, Math.min(MAX_STARS, rating));
   rating = Math.round(rating * 10) / 10;

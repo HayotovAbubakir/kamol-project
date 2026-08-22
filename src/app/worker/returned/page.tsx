@@ -6,12 +6,12 @@ import { EmptyState } from '@/components/EmptyState';
 import { ProjectCard } from '@/components/ProjectCard';
 import { ProjectSearchInput } from '@/components/ProjectSearchInput';
 import { SkeletonPage } from '@/components/Skeleton';
-import { Button } from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useWorkerData } from '@/hooks/useWorkerData';
 import { apiFetch } from '@/lib/auth';
-import { filterProjectsBySearch } from '@/lib/utils';
+import { filterProjectsBySearch, formatAddress } from '@/lib/utils';
 
 export default function WorkerReturnedPage() {
   const { t } = useAppSettings();
@@ -19,7 +19,7 @@ export default function WorkerReturnedPage() {
   const { returnedProjects, comments, loading, loadData } = useWorkerData();
   const [searchQuery, setSearchQuery] = useState('');
   const [busy, setBusy] = useState(false);
-  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [replyProjectId, setReplyProjectId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
 
   const filtered = useMemo(
@@ -27,29 +27,44 @@ export default function WorkerReturnedPage() {
     [returnedProjects, searchQuery],
   );
 
-  function toggleNotesEditor(projectId: string) {
-    if (editingNotesId === projectId) {
-      setEditingNotesId(null);
-      setNotesDraft('');
-      return;
+  const commentsByProject = useMemo(() => {
+    const map = new Map<string, typeof comments>();
+    for (const c of comments) {
+      const list = map.get(c.projectId) ?? [];
+      list.push(c);
+      map.set(c.projectId, list);
     }
-    const project = returnedProjects.find((p) => p.id === projectId);
-    setEditingNotesId(projectId);
-    setNotesDraft(project?.description ?? '');
+    return map;
+  }, [comments]);
+
+  const replyProject = useMemo(
+    () => (replyProjectId ? returnedProjects.find((p) => p.id === replyProjectId) : undefined),
+    [replyProjectId, returnedProjects],
+  );
+
+  function openReplyModal(projectId: string) {
+    setReplyProjectId(projectId);
+    setNotesDraft('');
   }
 
-  async function handleSaveNotes(projectId: string, text: string) {
+  function closeReplyModal() {
     if (busy) return;
+    setReplyProjectId(null);
+    setNotesDraft('');
+  }
+
+  async function handleSubmitReply() {
+    if (busy || !replyProjectId || !notesDraft.trim()) return;
     setBusy(true);
     try {
-      await apiFetch('/api/projects', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: projectId, description: text }),
+      await apiFetch('/api/worker/replies', {
+        method: 'POST',
+        body: JSON.stringify({ projectId: replyProjectId, message: notesDraft.trim() }),
       });
-      setEditingNotesId(null);
+      setReplyProjectId(null);
       setNotesDraft('');
+      showToast('success', t('worker.replySent'));
       await loadData({ silent: true });
-      showToast('success', t('toast.saved'));
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : t('common.error'));
     } finally {
@@ -90,24 +105,60 @@ export default function WorkerReturnedPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="ui-project-grid">
           {filtered.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
               variant="worker"
-              comments={comments.filter((c) => c.projectId === project.id)}
+              comments={commentsByProject.get(project.id) ?? []}
               showActions
-              onNotes={toggleNotesEditor}
-              onSaveNotes={handleSaveNotes}
-              notesEditing={editingNotesId === project.id}
-              notesDraft={editingNotesId === project.id ? notesDraft : ''}
-              onNotesDraftChange={setNotesDraft}
-              notesSaving={busy && editingNotesId === project.id}
+              workerReplyMode
+              onNotes={openReplyModal}
             />
           ))}
         </div>
       )}
+
+      <Modal
+        open={!!replyProject}
+        title={t('worker.replyLabel')}
+        description={
+          replyProject
+            ? [replyProject.title, formatAddress(replyProject)].filter(Boolean).join(' · ')
+            : undefined
+        }
+        onClose={closeReplyModal}
+        size="lg"
+      >
+        {replyProject?.notes?.trim() && (
+          <p className="mb-3 rounded-xl border border-orange-500/25 bg-orange-500/10 px-3 py-2 text-sm text-app-muted">
+            <span className="font-medium text-orange-600 dark:text-orange-300">
+              {t('project.returnedReason')}:
+            </span>{' '}
+            {replyProject.notes.trim()}
+          </p>
+        )}
+        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-app-muted">
+          {t('worker.replyLabel')}
+        </label>
+        <textarea
+          value={notesDraft}
+          onChange={(e) => setNotesDraft(e.target.value)}
+          rows={5}
+          className="ui-input w-full resize-none"
+          placeholder={t('worker.replyPlaceholder')}
+          autoFocus
+        />
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={closeReplyModal} disabled={busy}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleSubmitReply} disabled={busy || !notesDraft.trim()}>
+            {busy ? t('common.submitting') : t('worker.replySubmit')}
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }

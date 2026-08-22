@@ -8,13 +8,14 @@ import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { apiFetch } from '@/lib/auth';
 import { cn, formatDate, formatDateTime, formatWeeklyRank, isReturnedProject } from '@/lib/utils';
-import type { CommentSentiment, CommentWithAuthor, WorkerProfile, WorkerProfileProject, WorkerSummary } from '@/types';
+import type { CommentSentiment, CommentWithAuthor, RatingHistoryItem, WorkerProfile, WorkerProfileProject, WorkerSummary } from '@/types';
 
 interface WorkerProfileModalProps {
   workerId: string | null;
   workers?: WorkerSummary[];
   onClose: () => void;
   onUpdated?: () => void;
+  readOnly?: boolean;
 }
 
 function MetaItem({ label, value }: { label: string; value: string }) {
@@ -172,7 +173,7 @@ function CommentEditor({
           />
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={handleSave} disabled={!text.trim() || saving}>
-              {saving ? '...' : t('common.save')}
+              {saving ? t('common.saving') : t('common.save')}
             </Button>
             <Button size="sm" variant="outline" onClick={onCancel}>
               {t('common.cancel')}
@@ -235,7 +236,7 @@ function InProgressProjectCard({
       });
       setUnassignOpen(false);
       onRefresh();
-      showToast('success', t('toast.saved'));
+      showToast('success', t('toast.unassigned'));
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : t('common.error'));
     } finally {
@@ -247,15 +248,17 @@ function InProgressProjectCard({
     <>
       <article className="overflow-hidden rounded-xl border border-app-border bg-app-card">
         <div className="p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h5 className="font-medium text-app-text">{project.clientName}</h5>
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <h5 className="min-w-0 break-words font-medium text-app-text [overflow-wrap:anywhere]">
+              {project.address}
+            </h5>
             {isReturnedProject(project) && (
-              <span className="ui-project-status ui-project-status-returned text-[10px]">
+              <span className="ui-project-status ui-project-status-returned shrink-0 text-[10px]">
                 {t('status.returned')}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-sm text-app-muted">{project.address}</p>
+          <p className="mt-0.5 break-words text-sm text-app-muted">{project.clientName}</p>
           {isReturnedProject(project) && project.notes && (
             <p className="mt-2 rounded-lg border border-app-border bg-app-bg px-3 py-2 text-sm text-app-text">
               {project.notes}
@@ -298,7 +301,7 @@ function InProgressProjectCard({
         </select>
         <div className="mt-4 flex gap-2">
           <Button className="flex-1" onClick={handleReassign} disabled={!selectedWorker || busy}>
-            {t('common.assign')}
+            {busy ? t('common.assigning') : t('common.assign')}
           </Button>
           <Button
             variant="outline"
@@ -318,6 +321,7 @@ function InProgressProjectCard({
         title={t('workerProfile.unassign')}
         message={`${project.clientName} — ${project.address}\n${t('workerProfile.confirmUnassign')}`}
         confirmLabel={t('workerProfile.unassign')}
+        confirmingLabel={t('common.unassigning')}
         variant="danger"
         onConfirm={handleUnassign}
         onCancel={() => setUnassignOpen(false)}
@@ -343,8 +347,10 @@ function ProjectCard({
   return (
     <article className="overflow-hidden rounded-xl border border-app-border bg-app-card">
       <div className="p-4">
-        <h5 className="font-medium text-app-text">{project.clientName}</h5>
-        <p className="mt-0.5 text-sm text-app-muted">{project.address}</p>
+        <h5 className="min-w-0 break-words font-medium text-app-text [overflow-wrap:anywhere]">
+          {project.address}
+        </h5>
+        <p className="mt-0.5 break-words text-sm text-app-muted">{project.clientName}</p>
         <ProjectDates project={project} t={t} />
       </div>
 
@@ -431,7 +437,62 @@ function ProjectSection({
   );
 }
 
-export function WorkerProfileModal({ workerId, workers = [], onClose, onUpdated }: WorkerProfileModalProps) {
+function RatingHistoryList({
+  items,
+  t,
+}: {
+  items: RatingHistoryItem[];
+  t: (key: string) => string;
+}) {
+  if (items.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-app-border px-4 py-6 text-center text-sm text-app-muted">
+        {t('leaderboard.historyEmpty')}
+      </p>
+    );
+  }
+
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => {
+        const positive = item.points > 0;
+        return (
+          <li
+            key={item.id}
+            className="flex items-start justify-between gap-3 rounded-xl border border-app-border bg-app-bg/40 px-4 py-3"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-app-text">{item.projectLabel}</p>
+              <p className="mt-0.5 text-xs text-app-muted">
+                {t(`leaderboard.historyType.${item.type}`)}
+                {item.daysToComplete != null
+                  ? ` · ${item.daysToComplete} ${t('common.days')}`
+                  : ''}
+                {` · ${formatDateTime(item.createdAt)}`}
+              </p>
+            </div>
+            <span
+              className={cn(
+                'shrink-0 text-sm font-semibold tabular-nums',
+                positive ? 'text-green-600 dark:text-green-400' : item.points < 0 ? 'text-deadline-red' : 'text-app-muted',
+              )}
+            >
+              {item.points > 0 ? `+${item.points}` : item.points} {t('rating.pointsUnit')}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function WorkerProfileModal({
+  workerId,
+  workers = [],
+  onClose,
+  onUpdated,
+  readOnly = false,
+}: WorkerProfileModalProps) {
   const { t, locale } = useAppSettings();
   const [profile, setProfile] = useState<WorkerProfile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -512,7 +573,7 @@ export function WorkerProfileModal({ workerId, workers = [], onClose, onUpdated 
           <ProjectSection
             title={t('workerProfile.inProgressSection')}
             projects={profile.inProgress}
-            showAssignActions
+            showAssignActions={!readOnly}
             currentWorkerId={workerId ?? undefined}
             workers={workers}
             t={t}
@@ -521,17 +582,22 @@ export function WorkerProfileModal({ workerId, workers = [], onClose, onUpdated 
           <ProjectSection
             title={t('workerProfile.completedSection')}
             projects={profile.completed}
-            showComments
+            showComments={!readOnly}
             t={t}
             onRefresh={handleRefresh}
           />
           <ProjectSection
             title={t('workerProfile.returnedSection')}
             projects={profile.returned}
-            showComments
+            showComments={!readOnly}
             t={t}
             onRefresh={handleRefresh}
           />
+
+          <section className="mt-6 min-w-0">
+            <h4 className="mb-3 text-sm font-semibold text-app-text">{t('leaderboard.historyTitle')}</h4>
+            <RatingHistoryList items={profile.ratingHistory ?? []} t={t} />
+          </section>
 
           {!hasProjects && (
             <p className="rounded-xl border border-dashed border-app-border px-4 py-8 text-center text-sm text-app-muted">

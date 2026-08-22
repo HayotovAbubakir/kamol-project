@@ -12,6 +12,20 @@ export function isInProgressStatus(status: string): boolean {
   return status === 'in_progress';
 }
 
+export function isPendingReviewStatus(status: string): boolean {
+  return status === 'pending_review';
+}
+
+/** Ishchi tugatgan (admin tasdiqlashini kutmoqda yoki tasdiqlangan) */
+export function isWorkerCompletedStatus(status: string): boolean {
+  return status === 'completed' || status === 'pending_review';
+}
+
+/** Ishchi endi o'zgartira olmaydigan holatlar */
+export function isWorkerLockedStatus(status: string): boolean {
+  return isWorkerCompletedStatus(status) || status === 'rejected' || status === 'returned';
+}
+
 /** Yangi + jarayonda — muddat bildirishnomalari uchun */
 export function isActiveStatus(status: string): boolean {
   return isPendingStatus(status) || isInProgressStatus(status);
@@ -76,11 +90,19 @@ export function formatOrderDate(date: string): string {
 export function formatOrderElapsed(orderDate: string, endAt?: string | number): string {
   const start = new Date(orderDate).getTime();
   const end = typeof endAt === 'number' ? endAt : endAt ? new Date(endAt).getTime() : Date.now();
-  const totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
+  let totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
+
+  const days = Math.floor(totalSeconds / 86_400);
+  totalSeconds %= 86_400;
   const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  totalSeconds %= 3600;
+  const minutes = Math.floor(totalSeconds / 60);
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} kun`);
+  if (hours > 0) parts.push(`${hours} soat`);
+  if (minutes > 0 || parts.length === 0) parts.push(`${minutes} daqiqa`);
+  return parts.join(' ');
 }
 
 export function getDeadlineUrgency(orderDate: string, status: ProjectStatus): DeadlineUrgency | null {
@@ -95,6 +117,7 @@ export function getStatusLabel(status: ProjectStatus): string {
   const labels: Record<ProjectStatus, string> = {
     pending: 'Kutilmoqda',
     in_progress: 'Jarayonda',
+    pending_review: 'Ko\'rib chiqilmagan',
     completed: 'Tugallangan',
     rejected: 'Rad etilgan',
     returned: 'Qaytarilgan',
@@ -173,16 +196,6 @@ export function formatPrice(price?: number): string {
   return new Intl.NumberFormat('uz-UZ').format(price);
 }
 
-export function getRemainingPrice(project: {
-  price?: number;
-  advancePaid: boolean;
-  advanceAmount?: number;
-}): number | null {
-  const { price, advancePaid, advanceAmount } = project;
-  if (price == null || price <= 0) return null;
-  if (!advancePaid || advanceAmount == null || advanceAmount <= 0) return null;
-  return Math.max(0, price - advanceAmount);
-}
 
 export function validateProjectPricing(project: {
   price?: number;
@@ -190,6 +203,14 @@ export function validateProjectPricing(project: {
   advanceAmount?: number;
 }): string | null {
   const { price, advancePaid, advanceAmount } = project;
+
+  if (price != null && (!Number.isFinite(price) || price < 0)) {
+    return 'Loyiha narxi noto\'g\'ri kiritilgan';
+  }
+
+  if (advanceAmount != null && (!Number.isFinite(advanceAmount) || advanceAmount < 0)) {
+    return 'Avans summasi noto\'g\'ri kiritilgan';
+  }
 
   if (advancePaid && advanceAmount != null && advanceAmount > 0) {
     if (price == null || price <= 0) {
@@ -201,6 +222,12 @@ export function validateProjectPricing(project: {
   }
 
   return null;
+}
+
+export function parseOptionalNumber(value: unknown): number | undefined {
+  if (value == null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export function formatNumberInput(value: string | number): string {

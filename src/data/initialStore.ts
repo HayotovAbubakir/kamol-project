@@ -9,4 +9,10 @@ export const initialStore: DataStore = {
   notifications: [],
   ratingEntries: [],
   comments: [],
+  payments: [],
+  workerReplies: [],
+  monthlyWinners: [],
+  usedCongratsCombos: [],
+  monthlySettlements: [],
+  monthlyWinnerViews: [],
 };

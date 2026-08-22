@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearSession } from '@/lib/auth';
+import { clearSession, getSession } from '@/lib/auth';
 import { useAdminDataOptional } from '@/context/AdminDataContext';
 import { useWorkerDataOptional } from '@/context/WorkerDataContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
+import { UserAvatar } from '@/components/UserAvatar';
 import { Logo } from '@/components/Logo';
 import { PageAtmosphere } from '@/components/atmosphere/PageAtmosphere';
 import { cn } from '@/lib/utils';
@@ -36,15 +37,20 @@ export function AppShell({ role, children }: AppShellProps) {
   const adminData = useAdminDataOptional();
   const workerData = useWorkerDataOptional();
 
-  const unread =
+  const notifications =
     role === 'admin'
-      ? (adminData?.notifications.filter((n) => !n.read).length ?? 0)
-      : 0;
+      ? (adminData?.notifications ?? [])
+      : (workerData?.notifications ?? []);
+  const unread = notifications.filter((n) => !n.read).length;
   const returnedCount =
     role === 'worker' ? (workerData?.returnedProjects.length ?? 0) : 0;
 
   const root = role === 'admin' ? '/admin' : '/worker';
   const isAdminDashboard = role === 'admin' && pathname === '/admin';
+  const sessionUser =
+    role === 'worker'
+      ? (workerData?.session ?? getSession())
+      : (adminData?.session ?? getSession());
 
   const nav = useMemo<NavItem[]>(() => {
     if (role === 'admin') {
@@ -52,7 +58,7 @@ export function AppShell({ role, children }: AppShellProps) {
         { href: '/admin', labelKey: 'nav.home', icon: <HomeIcon /> },
         { href: '/admin/projects', labelKey: 'nav.projects', icon: <FolderIcon /> },
         { href: '/admin/workers', labelKey: 'nav.workers', icon: <UsersIcon /> },
-        { href: '/admin/notifications', labelKey: 'nav.notifications', icon: <BellIcon /> },
+        { href: '/admin/leaderboard', labelKey: 'nav.leaderboard', icon: <TrophyIcon /> },
         { href: '/admin/settings', labelKey: 'nav.settings', icon: <GearIcon /> },
       ];
     }
@@ -61,6 +67,7 @@ export function AppShell({ role, children }: AppShellProps) {
       { href: '/worker/projects', labelKey: 'nav.myProjects', icon: <FolderIcon /> },
       { href: '/worker/completed', labelKey: 'nav.completed', icon: <CheckIcon /> },
       { href: '/worker/returned', labelKey: 'nav.returnedProjects', icon: <ReturnIcon /> },
+      { href: '/worker/leaderboard', labelKey: 'nav.leaderboard', icon: <TrophyIcon /> },
       { href: '/worker/settings', labelKey: 'nav.settings', icon: <GearIcon /> },
     ];
   }, [role]);
@@ -74,8 +81,17 @@ export function AppShell({ role, children }: AppShellProps) {
     router.push('/');
   }
 
+  const notificationsPath = `${root}/notifications`;
+  const isNotificationsPage = pathname === notificationsPath;
+  const isWaterAtmosphere =
+    pathname?.includes('/projects') ||
+    pathname?.includes('/workers') ||
+    pathname?.includes('/notifications') ||
+    pathname?.includes('/completed') ||
+    pathname?.includes('/returned');
+
   return (
-    <div className="h-dvh overflow-hidden bg-app-bg text-app-text">
+    <div className={cn('h-dvh overflow-hidden bg-app-bg text-app-text', isWaterAtmosphere && 'app-shell-water')}>
       {menuOpen && (
         <button
           type="button"
@@ -87,7 +103,7 @@ export function AppShell({ role, children }: AppShellProps) {
 
       <aside
         className={cn(
-          'ui-glass-sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col text-white transition-transform lg:translate-x-0',
+          'ui-glass-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(17rem,88vw)] flex-col text-white transition-transform lg:w-64 lg:translate-x-0 xl:w-72 2xl:w-80',
           menuOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -106,10 +122,7 @@ export function AppShell({ role, children }: AppShellProps) {
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {nav.map((item) => {
             const active = isActive(pathname, item.href, root);
-            const showBadge = item.href.endsWith('/notifications') && unread > 0;
             const showReturnedBadge = item.href.endsWith('/returned') && returnedCount > 0;
-            const badgeCount = showReturnedBadge ? returnedCount : unread;
-            const shouldShowBadge = showBadge || showReturnedBadge;
             return (
               <Link
                 key={item.href}
@@ -122,10 +135,10 @@ export function AppShell({ role, children }: AppShellProps) {
                 )}
               >
                 <span className="h-5 w-5 shrink-0">{item.icon}</span>
-                <span className="flex-1">{t(item.labelKey)}</span>
-                {shouldShowBadge && (
-                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-deadline-red px-1.5 text-[10px] font-bold text-white">
-                    {badgeCount}
+                <span className="min-w-0 flex-1 truncate">{t(item.labelKey)}</span>
+                {showReturnedBadge && (
+                  <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-deadline-red px-1.5 text-[10px] font-bold text-white">
+                    {returnedCount}
                   </span>
                 )}
               </Link>
@@ -134,27 +147,23 @@ export function AppShell({ role, children }: AppShellProps) {
         </nav>
 
         <div className="border-t border-white/10 p-3 dark:border-metallic-green/20">
-          <button
-            type="button"
-            onClick={logout}
-            className="ui-sidebar-btn"
-          >
+          <button type="button" onClick={logout} className="ui-sidebar-btn">
             {t('common.logout')}
           </button>
         </div>
       </aside>
 
-      <div className="relative flex h-dvh min-h-0 flex-col overflow-hidden lg:pl-64">
+      <div className="relative flex h-dvh min-h-0 flex-col overflow-hidden lg:pl-64 xl:pl-72 2xl:pl-80">
         <PageAtmosphere />
         <header
           className={cn(
-            'ui-glass-nav z-20 flex shrink-0 items-center justify-between gap-3 border-b px-4 sm:px-8',
+            'ui-glass-nav z-20 flex shrink-0 items-center gap-3 border-b px-3 xs:px-4 sm:px-6 lg:px-8',
             isAdminDashboard ? 'py-2' : 'py-3',
           )}
         >
           <button
             type="button"
-            className="ui-icon-btn text-app-accent lg:hidden"
+            className="ui-icon-btn ui-touch-target text-app-accent lg:hidden"
             onClick={() => setMenuOpen(true)}
             aria-label={t('common.menu')}
           >
@@ -162,26 +171,85 @@ export function AppShell({ role, children }: AppShellProps) {
               <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
-          <div className="hidden font-display text-sm font-semibold tracking-wide text-app-muted lg:block">
+
+          <div className="hidden font-display text-sm font-semibold tracking-wide text-app-muted lg:block xl:text-base">
             KAMOL PROJECT
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="ui-btn-outline ui-btn-sm ml-auto lg:hidden"
-          >
-            {t('common.logout')}
-          </button>
+
+          <div className="ml-auto flex items-center gap-2">
+            {sessionUser && (
+              <div className="flex min-w-0 items-center gap-2 rounded-xl border border-app-border/35 bg-app-bg/35 px-2 py-1.5">
+                <UserAvatar name={sessionUser.name} seed={sessionUser.id} size="lg" />
+                <div className="min-w-0 max-w-[8rem] xs:max-w-[10rem] md:max-w-[14rem]">
+                  <p className="truncate text-sm font-semibold leading-tight text-app-text">{sessionUser.name}</p>
+                  <p className="truncate text-[11px] leading-tight text-app-muted">
+                    {role === 'worker' ? t('common.roleWorker') : t('common.roleAdmin')}
+                  </p>
+                </div>
+              </div>
+            )}
+            <Link
+              href={notificationsPath}
+              className={cn(
+                'ui-icon-btn ui-touch-target relative text-app-text',
+                isNotificationsPage && 'bg-app-accent/10 text-app-accent',
+              )}
+              aria-label={t('nav.notifications')}
+            >
+              <span className="h-5 w-5">
+                <BellIcon />
+              </span>
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-deadline-red px-1 text-[9px] font-bold text-white">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </Link>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="ui-btn-outline ui-btn-sm ui-touch-target lg:hidden"
+            >
+              {t('common.logout')}
+            </button>
+          </div>
         </header>
+
         <main
-          key={pathname}
           className={cn(
-            'page-enter relative z-10 mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-x-hidden px-4 sm:px-8',
-            isAdminDashboard ? 'overflow-hidden py-2 sm:py-2.5' : 'overflow-y-auto py-4 sm:py-5',
+            'ui-page-shell relative z-10 flex w-full min-h-0 flex-1 flex-col overflow-x-hidden px-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] xs:px-4 sm:px-6 lg:px-8 lg:pb-8',
+            isAdminDashboard ? 'overflow-hidden py-2 sm:py-2.5' : 'overflow-y-auto pt-3 sm:pt-4 md:pt-5',
           )}
         >
           {children}
         </main>
+
+        <nav className="ui-mobile-nav" aria-label={t('common.menu')}>
+          <div className="ui-mobile-nav-inner">
+            {nav.map((item) => {
+              const active = isActive(pathname, item.href, root);
+              const showReturnedBadge = item.href.endsWith('/returned') && returnedCount > 0;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn('ui-mobile-nav-item', active && 'ui-mobile-nav-item-active')}
+                >
+                  <span className="relative ui-mobile-nav-icon">
+                    {item.icon}
+                    {showReturnedBadge && (
+                      <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-deadline-red px-1 text-[9px] font-bold text-white">
+                        {returnedCount > 9 ? '9+' : returnedCount}
+                      </span>
+                    )}
+                  </span>
+                  <span className="ui-mobile-nav-label">{t(item.labelKey)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       </div>
     </div>
   );
@@ -213,7 +281,7 @@ function UsersIcon() {
 
 function BellIcon() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-full w-full">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0" />
     </svg>
   );
@@ -236,10 +304,19 @@ function CheckIcon() {
   );
 }
 
+function TrophyIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 5h8v4a4 4 0 0 1-8 0V5Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5.5A2.5 2.5 0 0 0 8 9.5M16 7h2.5A2.5 2.5 0 0 1 16 9.5M9 17h6M12 13v4M8 21h8" />
+    </svg>
+  );
+}
+
 function ReturnIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H13" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 1 0 0 11H13" />
     </svg>
   );
 }
