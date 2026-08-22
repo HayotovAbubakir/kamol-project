@@ -41,7 +41,7 @@ import {
   type DbUser,
 } from '@/lib/supabase/mappers';
 import { syncStoreAdvancePayments } from '@/lib/payments';
-import type { DataStore } from '@/types';
+import type { DataStore, AppNotification, Payment, Project, ProjectComment, RatingEntry } from '@/types';
 
 const LEGACY_STORE_PATH = process.env.VERCEL
   ? path.join('/tmp', 'kamol-project', 'store.json')
@@ -357,6 +357,79 @@ const ALL_STORE_TABLES: StoreTable[] = [
   'monthly_settlements',
   'monthly_winner_views',
 ];
+
+function enrichDbError(error: { message?: string }, table: string): Error {
+  const msg = error.message ?? 'Ma\'lumotlar bazasi xatoligi';
+  if (msg.includes('projects_status_check') || msg.includes('pending_review')) {
+    return new Error(
+      'Baza sxemasi yangilanmagan. Supabase SQL Editor da supabase/schema.sql faylini ishga tushiring.',
+    );
+  }
+  return new Error(`${table}: ${msg}`);
+}
+
+export type StorePatch = {
+  projects?: Project[];
+  notifications?: AppNotification[];
+  ratingEntries?: RatingEntry[];
+  comments?: ProjectComment[];
+  payments?: Payment[];
+};
+
+/** PATCH kabi operatsiyalar uchun — faqat o'zgargan qatorlarni yozadi (butun jadvalni sync qilmaydi). */
+export async function persistStorePatch(store: DataStore, patch: StorePatch): Promise<void> {
+  store.version = STORE_VERSION;
+  setCachedStore(store);
+
+  if (!isSupabaseConfigured()) {
+    await saveLegacyJsonStore(store);
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  if (patch.projects?.length) {
+    const { error } = await supabase
+      .from('projects')
+      .upsert(patch.projects.map((p) => projectToDb(p)), { onConflict: 'id' });
+    if (error) throw enrichDbError(error, 'projects');
+  }
+
+  if (patch.notifications?.length) {
+    const { error } = await supabase
+      .from('notifications')
+      .insert(patch.notifications.map((n) => notificationToDb(n)));
+    if (error) throw enrichDbError(error, 'notifications');
+  }
+
+  if (patch.ratingEntries?.length) {
+    const { error } = await supabase
+      .from('rating_entries')
+      .insert(patch.ratingEntries.map((r) => ratingEntryToDb(r)));
+    if (error) {
+      // rating_entries jadvali hali bo'lmasa — e'tiborsiz qoldiramiz
+      if (!String(error.message).includes('does not exist')) throw enrichDbError(error, 'rating_entries');
+    }
+  }
+
+  if (patch.comments?.length) {
+    const { error } = await supabase
+      .from('project_comments')
+      .upsert(patch.comments.map((c) => commentToDb(c)), { onConflict: 'id' });
+    if (error) {
+      if (!String(error.message).includes('does not exist')) throw enrichDbError(error, 'project_comments');
+    }
+  }
+
+  if (patch.payments?.length) {
+    const { error } = await supabase
+      .from('payments')
+      .upsert(patch.payments.map((p) => paymentToDb(p)), { onConflict: 'id' });
+    if (error) {
+      if (!String(error.message).includes('does not exist')) throw enrichDbError(error, 'payments');
+    }
+  }
+}
 
 export async function writeStore(
   store: DataStore,

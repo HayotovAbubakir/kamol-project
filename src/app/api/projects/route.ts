@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { readStore, writeStore } from '@/lib/store';
+import { readStore, persistStorePatch, writeStore } from '@/lib/store';
+import { ADVANCE_PAYMENT_NOTE } from '@/lib/payments';
+import { getProjectComment } from '@/lib/comments';
 import { maybeSyncDeadlineNotifications } from '@/lib/notifications';
 import { getSessionFromRequest, requireAdmin, requireAuth } from '@/lib/session';
 import { applyReturnRatingEntries, createRatingEntry, getWorkerRating, notifyStarRatingChange } from '@/lib/rating';
@@ -129,6 +131,8 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const store = await readStore();
     const idx = store.projects.findIndex((p) => p.id === body.id);
+    const notificationsBefore = store.notifications.length;
+    const ratingEntriesBefore = (store.ratingEntries ?? []).length;
 
     if (idx === -1) {
       return NextResponse.json({ error: 'Loyiha topilmadi' }, { status: 404 });
@@ -152,7 +156,7 @@ export async function PATCH(request: NextRequest) {
         completedAt: undefined,
       };
 
-      await writeStore(store, { tables: ['projects'] });
+      await persistStorePatch(store, { projects: [store.projects[idx]] });
       return NextResponse.json({ project: store.projects[idx] });
     }
 
@@ -376,12 +380,25 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    await writeStore(store, {
-      tables: ['projects', 'notifications', 'rating_entries', 'project_comments', 'payments'],
+    const addedNotifications = store.notifications.slice(0, store.notifications.length - notificationsBefore);
+    const addedRatingEntries = (store.ratingEntries ?? []).slice(ratingEntriesBefore);
+    const touchedComment = isReturnAction ? getProjectComment(store, updated.id) : undefined;
+    const advancePayment = (store.payments ?? []).find(
+      (p) => p.projectId === updated.id && p.note === ADVANCE_PAYMENT_NOTE,
+    );
+
+    await persistStorePatch(store, {
+      projects: [store.projects[idx]],
+      ...(addedNotifications.length ? { notifications: addedNotifications } : {}),
+      ...(addedRatingEntries.length ? { ratingEntries: addedRatingEntries } : {}),
+      ...(touchedComment ? { comments: [touchedComment] } : {}),
+      ...(advancePayment ? { payments: [advancePayment] } : {}),
     });
     return NextResponse.json({ project: store.projects[idx] });
-  } catch {
-    return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
+  } catch (err) {
+    console.error('[PATCH /api/projects]', err);
+    const message = err instanceof Error ? err.message : 'Server xatoligi';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
