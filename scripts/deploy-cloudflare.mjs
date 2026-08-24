@@ -59,4 +59,6 @@ if (!existsSync('.open-next/worker.js')) {
 }
 
 syncBuildEnvToWorkerRuntime();
+console.log('>>> Admin parolini tekshirish / yangilash...\n');
+run('node', ['scripts/reset-admin-password.mjs']);
 run('npx', ['opennextjs-cloudflare', 'deploy', '--', '--keep-vars']);

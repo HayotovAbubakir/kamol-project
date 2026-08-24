@@ -9,6 +9,7 @@
     "dev": "next dev -p 5173",
     "build": "next build",
     "postbuild": "node scripts/postbuild-cloudflare.mjs",
+    "reset-admin": "node scripts/reset-admin-password.mjs",
     "deploy": "node scripts/deploy-cloudflare.mjs",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cloudflare": "npm run deploy",

@@ -19,7 +19,6 @@ service = "kamol-project"
 #   Build command:  npm run build
 #   Deploy command: node scripts/deploy-cloudflare.mjs
 #
-# Cloudflare Dashboard → Settings → Variables & Secrets (RUNTIME — Build emas!):
-#   NEXT_PUBLIC_SUPABASE_URL = https://xxx.supabase.co
-#   SUPABASE_SERVICE_ROLE_KEY = (Encrypt / Secret)
-#   SESSION_SECRET = (Encrypt / Secret, kamida 32 belgi)
+# Cloudflare Dashboard → Settings → Build → Build variables:
+#   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SESSION_SECRET
+#   ADMIN_INITIAL_PASSWORD=admin123  (deploy paytida admin parolini sync qiladi)
