@@ -3,6 +3,10 @@ main = ".open-next/worker.js"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
+# Cloudflare Dashboard → Settings → Build:
+#   Build command:  npm run build
+#   Deploy command: npm run deploy   (← MUHIM! npx wrangler deploy EMAS)
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
