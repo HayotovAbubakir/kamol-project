@@ -53,7 +53,10 @@ let cacheExpiry = 0;
 // Last successfully fetched store, preserved across cache TTL expiry so we can
 // serve stale-while-error when Supabase is temporarily slow/unreachable.
 let lastGoodStore: DataStore | null = null;
-const CACHE_TTL = 15_000;
+const CACHE_TTL = 30_000;
+/** Supabase dan yuklanadigan bildirishnomalar limiti (API limitini tejash) */
+const NOTIFICATIONS_FETCH_LIMIT = 300;
+const WORKER_REPLIES_FETCH_LIMIT = 200;
 
 export type StoreTable =
   | 'users'
@@ -271,11 +274,25 @@ async function fetchAllFromSupabase(): Promise<DataStore> {
     await Promise.all([
     withTimeout(supabase.from('users').select('*').order('created_at', { ascending: true }), 'users'),
     withTimeout(supabase.from('projects').select('*').order('order_date', { ascending: false }), 'projects'),
-    withTimeout(supabase.from('notifications').select('*').order('created_at', { ascending: false }), 'notifications'),
+    withTimeout(
+      supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(NOTIFICATIONS_FETCH_LIMIT),
+      'notifications',
+    ),
     withTimeout(supabase.from('rating_entries').select('*').order('created_at', { ascending: false }), 'rating_entries'),
     withTimeout(supabase.from('project_comments').select('*').order('created_at', { ascending: false }), 'project_comments'),
     withTimeout(supabase.from('payments').select('*').order('paid_at', { ascending: true }), 'payments'),
-    withTimeout(supabase.from('worker_replies').select('*').order('created_at', { ascending: false }), 'worker_replies'),
+    withTimeout(
+      supabase
+        .from('worker_replies')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(WORKER_REPLIES_FETCH_LIMIT),
+      'worker_replies',
+    ),
     withTimeout(supabase.from('monthly_winners').select('*'), 'monthly_winners'),
     withTimeout(supabase.from('used_congrats_combos').select('*'), 'used_congrats_combos'),
     withTimeout(supabase.from('monthly_settlements').select('*'), 'monthly_settlements'),

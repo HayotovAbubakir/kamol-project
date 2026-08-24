@@ -18,6 +18,8 @@ create table if not exists public.users (
   created_at timestamptz not null default now()
 );
 
+create index if not exists idx_users_role on public.users(role);
+
 -- ---------------------------------------------------------------------------
 -- Projects
 -- ---------------------------------------------------------------------------
@@ -46,6 +48,21 @@ create index if not exists idx_projects_assigned_to on public.projects(assigned_
 create index if not exists idx_projects_status on public.projects(status);
 create index if not exists idx_projects_order_date on public.projects(order_date desc);
 create index if not exists idx_projects_returned_at on public.projects(returned_at desc nulls last);
+create index if not exists idx_projects_status_order_date on public.projects(status, order_date desc);
+create index if not exists idx_projects_assigned_status on public.projects(assigned_to, status)
+  where assigned_to is not null;
+
+-- Qidiruv maydonlari (ism, manzil, telefon) — pg_trgm bilan tez qidiruv
+create extension if not exists pg_trgm;
+create index if not exists idx_projects_client_name_trgm
+  on public.projects using gin (client_name gin_trgm_ops);
+create index if not exists idx_projects_address_trgm
+  on public.projects using gin (address gin_trgm_ops);
+create index if not exists idx_projects_title_trgm
+  on public.projects using gin (title gin_trgm_ops);
+create index if not exists idx_projects_phone_trgm
+  on public.projects using gin (phone gin_trgm_ops)
+  where phone is not null;
 
 -- ---------------------------------------------------------------------------
 -- Notifications
@@ -63,6 +80,9 @@ create table if not exists public.notifications (
 
 create index if not exists idx_notifications_user_id on public.notifications(user_id);
 create index if not exists idx_notifications_created_at on public.notifications(created_at desc);
+create index if not exists idx_notifications_user_created on public.notifications(user_id, created_at desc);
+create index if not exists idx_notifications_project_id on public.notifications(project_id)
+  where project_id is not null;
 
 -- ---------------------------------------------------------------------------
 -- App settings (single row)
@@ -99,6 +119,7 @@ create table if not exists public.rating_entries (
 
 create index if not exists idx_rating_entries_worker on public.rating_entries(worker_id);
 create index if not exists idx_rating_entries_created on public.rating_entries(created_at);
+create index if not exists idx_rating_entries_project on public.rating_entries(project_id);
 
 -- ---------------------------------------------------------------------------
 -- Project comments (admin → worker, one per project)
