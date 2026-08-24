@@ -1,11 +1,15 @@
-# Cloudflare Workers nomi (URL: kamol-project.<account>.workers.dev)
 name = "kamol-project"
-compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
-# Ochiq o'zgaruvchi (secret emas)
-[vars]
-# NEXT_PUBLIC_SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
-# ↑ yoki Dashboard → Workers → kamol-project → Settings → Variables orqali qo'ying
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "kamol-project"
 
 # Maxfiy kalitlar: wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# Ochiq o'zgaruvchilar: Dashboard → Workers → kamol-project → Settings → Variables
