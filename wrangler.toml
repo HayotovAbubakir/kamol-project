@@ -3,10 +3,9 @@ main = ".open-next/worker.js"
 compatibility_date = "2025-04-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public", "nodejs_compat_populate_process_env"]
 
-# Cloudflare Dashboard → Settings → Build:
+# Cloudflare Dashboard → Settings → Build (ANIQ shu matn, emoji/belgi QO'SHMA):
 #   Build command:  npm run build
-#   Deploy command: npm run deploy
-# (wrangler deploy EMAS — opennextjs-cloudflare deploy ishlatiladi)
+#   Deploy command: node scripts/deploy-cloudflare.mjs
 
 [assets]
 directory = ".open-next/assets"
@@ -18,7 +17,7 @@ service = "kamol-project"
 
 # Cloudflare Dashboard → Settings → Build:
 #   Build command:  npm run build
-#   Deploy command: npm run deploy
+#   Deploy command: node scripts/deploy-cloudflare.mjs
 #
 # Cloudflare Dashboard → Settings → Variables & Secrets (RUNTIME — Build emas!):
 #   NEXT_PUBLIC_SUPABASE_URL = https://xxx.supabase.co
