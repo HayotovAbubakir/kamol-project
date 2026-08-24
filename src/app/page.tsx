@@ -42,6 +42,14 @@ export default function LoginPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!opened) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById('username')?.focus();
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [opened]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
@@ -142,7 +150,11 @@ export default function LoginPage() {
                     </div>
 
                     {error && (
-                      <p className="rounded-xl bg-deadline-red/10 px-3 py-2 text-sm text-deadline-red">
+                      <p
+                        role="alert"
+                        aria-live="polite"
+                        className="rounded-xl bg-deadline-red/10 px-3 py-2 text-sm text-deadline-red"
+                      >
                         {error}
                       </p>
                     )}
