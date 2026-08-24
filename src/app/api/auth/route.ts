@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { syncRuntimeEnvToProcess } from '@/lib/runtimeEnv';
+import { syncRuntimeEnvToProcessAsync } from '@/lib/runtimeEnv';
 import { readStore } from '@/lib/store';
 import { verifyPassword } from '@/lib/password';
 import { signSession } from '@/lib/sessionToken';
@@ -23,7 +23,7 @@ async function lockResponse(key: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    syncRuntimeEnvToProcess();
+    await syncRuntimeEnvToProcessAsync();
     const ip = getClientIp(request);
     const body = await request.json();
     const username = typeof body.username === 'string' ? body.username.trim() : '';
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            'Server sozlanmagan. Cloudflare → Settings → Variables & Secrets ga Supabase kalitlari va SESSION_SECRET qo\'shing.',
+            'Server sozlanmagan. Kalitlar Settings → Variables and Secrets (RUNTIME) da bo\'lishi kerak — Build variables yetarli emas. Kerak: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SESSION_SECRET.',
         },
         { status: 503 },
       );

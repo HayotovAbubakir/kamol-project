@@ -1,6 +1,12 @@
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
+const RUNTIME_ENV_KEYS = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SESSION_SECRET',
+];
+
 const extraArgs = process.argv.slice(2);
 if (extraArgs.length > 0) {
   console.warn(
@@ -10,13 +16,31 @@ if (extraArgs.length > 0) {
   );
 }
 
-function run(command, args) {
+function run(command, args, input) {
   const result = spawnSync(command, args, {
-    stdio: 'inherit',
+    stdio: [input ? 'pipe' : 'inherit', 'inherit', 'inherit'],
     shell: process.platform === 'win32',
+    input,
   });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
+  }
+}
+
+/** Workers Builds: Build variables deploy vaqtida mavjud, runtime emas — shu yerda sync qilinadi. */
+function syncBuildEnvToWorkerRuntime() {
+  if (!process.env.WORKERS_CI && !process.env.CI) return;
+
+  console.log('>>> Build env dan runtime secretlarni sync qilish...\n');
+
+  for (const key of RUNTIME_ENV_KEYS) {
+    const value = process.env[key]?.trim();
+    if (!value) {
+      console.warn(`>>> [ogohlantirish] Build env da ${key} yo'q`);
+      continue;
+    }
+    console.log(`>>> secret put ${key}`);
+    run('npx', ['wrangler', 'secret', 'put', key], value);
   }
 }
 
@@ -34,4 +58,5 @@ if (!existsSync('.open-next/worker.js')) {
   process.exit(1);
 }
 
+syncBuildEnvToWorkerRuntime();
 run('npx', ['opennextjs-cloudflare', 'deploy', '--', '--keep-vars']);
