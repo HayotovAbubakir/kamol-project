@@ -33,14 +33,27 @@ export function mustUseSupabase(): boolean {
     Boolean(process.env.CF_PAGES) ||
     Boolean(process.env.CLOUDFLARE_WORKERS) ||
     Boolean(process.env.CF_WORKER) ||
-    Boolean(process.env.WORKERS_CI)
+    Boolean(process.env.WORKERS_CI) ||
+    Boolean(process.env.WORKERS_CI_BUILD_UUID)
   );
+}
+
+export function getServerConfigIssues(): string[] {
+  const issues: string[] = [];
+  if (!isSupabaseConfigured()) {
+    issues.push('NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY');
+  }
+  const secret = process.env.SESSION_SECRET?.trim();
+  if ((process.env.NODE_ENV === 'production' || mustUseSupabase()) && (!secret || secret.length < 32)) {
+    issues.push('SESSION_SECRET (kamida 32 belgi)');
+  }
+  return issues;
 }
 
 export function assertSupabaseInProduction(): void {
   if (mustUseSupabase() && !isSupabaseConfigured()) {
     throw new Error(
-      'Production muhitda Supabase majburiy. Cloudflare (yoki Vercel) dashboard ga NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY qo\'shing. Keyin Supabase SQL Editor da supabase/schema.sql ni ishga tushiring.',
+      'Production muhitda Supabase majburiy. Cloudflare Dashboard → Settings → Variables & Secrets (Build emas!) ga NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY qo\'shing.',
     );
   }
 }

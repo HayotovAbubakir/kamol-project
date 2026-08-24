@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { isSupabaseConfigured, mustUseSupabase } from '@/lib/supabase/admin';
+import { getServerConfigIssues, isSupabaseConfigured, mustUseSupabase } from '@/lib/supabase/admin';
 
 /** Production sozlamalarini tekshirish (maxfiy kalitlarsiz). */
 export async function GET() {
+  const issues = getServerConfigIssues();
   const supabaseConfigured = isSupabaseConfigured();
   const serverless = mustUseSupabase();
-  const ok = !serverless || supabaseConfigured;
+  const ok = issues.length === 0;
 
   return NextResponse.json(
     {
@@ -13,9 +14,11 @@ export async function GET() {
       database: 'supabase',
       supabaseConfigured,
       serverlessEnvironment: serverless,
+      missing: issues,
       hint: ok
         ? 'Ma\'lumotlar bazasi ulanishi sozlangan.'
-        : 'Cloudflare dashboard → Settings → Variables ga NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY qo\'shing. So\'ng Supabase SQL Editor da supabase/schema.sql ni ishga tushiring.',
+        : 'Cloudflare Dashboard → kamol-project → Settings → Variables & Secrets ga quyidagilarni qo\'shing (Build variables emas!): ' +
+          issues.join(', '),
     },
     { status: ok ? 200 : 503 },
   );

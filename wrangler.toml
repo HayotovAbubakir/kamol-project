@@ -15,5 +15,11 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "kamol-project"
 
-# Maxfiy kalitlar: wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-# Ochiq o'zgaruvchilar: Dashboard → Workers → kamol-project → Settings → Variables
+# Cloudflare Dashboard → Settings → Build:
+#   Build command:  npm run build
+#   Deploy command: npm run deploy
+#
+# Cloudflare Dashboard → Settings → Variables & Secrets (RUNTIME — Build emas!):
+#   NEXT_PUBLIC_SUPABASE_URL = https://xxx.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY = (Encrypt / Secret)
+#   SESSION_SECRET = (Encrypt / Secret, kamida 32 belgi)

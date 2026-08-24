@@ -14,8 +14,8 @@ interface TokenPayload {
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET?.trim();
   if (secret && secret.length >= 32) return secret;
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-    throw new Error('SESSION_SECRET majburiy (kamida 32 belgi).');
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.WORKERS_CI) {
+    throw new Error('SESSION_SECRET majburiy (kamida 32 belgi). Cloudflare Variables & Secrets ga qo\'shing.');
   }
   // Dev-only fallback — never used in production.
   return 'dev-only-session-secret-change-me!!';

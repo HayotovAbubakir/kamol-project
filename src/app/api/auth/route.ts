@@ -62,6 +62,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ user: session, token: signSession(session) });
   } catch (err) {
     console.error('[api/auth]', err);
+    const message = err instanceof Error ? err.message : '';
+    if (
+      message.includes('Supabase') ||
+      message.includes('SESSION_SECRET') ||
+      message.includes('sozlanmagan')
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Server sozlanmagan. Cloudflare → Settings → Variables & Secrets ga Supabase kalitlari va SESSION_SECRET qo\'shing.',
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
   }
 }

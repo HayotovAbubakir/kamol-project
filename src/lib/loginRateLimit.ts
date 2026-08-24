@@ -36,8 +36,12 @@ async function readFileStore(): Promise<Record<string, Entry>> {
 }
 
 async function writeFileStore(data: Record<string, Entry>): Promise<void> {
-  await fs.mkdir(path.dirname(FILE_PATH), { recursive: true });
-  await fs.writeFile(FILE_PATH, JSON.stringify(data), 'utf-8');
+  try {
+    await fs.mkdir(path.dirname(FILE_PATH), { recursive: true });
+    await fs.writeFile(FILE_PATH, JSON.stringify(data), 'utf-8');
+  } catch {
+    // Cloudflare Workers kabi serverless muhitlarda fayl yozilmaydi.
+  }
 }
 
 async function loadEntry(key: string): Promise<Entry | null> {
