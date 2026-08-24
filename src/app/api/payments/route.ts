@@ -5,6 +5,7 @@ import {
   getPaymentsForProject,
   getRemainingPrice,
   getTotalPaidFromList,
+  validatePaymentAmount,
 } from '@/lib/payments';
 import { readStore, writeStore } from '@/lib/store';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
@@ -23,8 +24,11 @@ export async function GET(request: NextRequest) {
     }
 
     const store = await readStore();
-    const payments = getPaymentsForProject(store, projectId);
     const project = store.projects.find((p) => p.id === projectId);
+    if (project) {
+      ensureAdvancePayment(store, project);
+    }
+    const payments = getPaymentsForProject(store, projectId);
     const remaining = project ? getRemainingPrice(project, payments) : null;
 
     return NextResponse.json({
@@ -47,11 +51,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { projectId, amount, note } = body as {
       projectId?: string;
-      amount?: number;
+      amount?: unknown;
       note?: string;
     };
 
-    if (!projectId || !amount || amount <= 0) {
+    if (!projectId) {
       return NextResponse.json({ error: 'Loyiha va summa kerak' }, { status: 400 });
     }
 
@@ -60,42 +64,33 @@ export async function POST(request: NextRequest) {
     if (!project) {
       return NextResponse.json({ error: 'Loyiha topilmadi' }, { status: 404 });
     }
-    if (project.price == null || project.price <= 0) {
-      return NextResponse.json({ error: 'Loyiha narxi kiritilmagan' }, { status: 400 });
-    }
 
+    ensureAdvancePayment(store, project);
     const existing = getPaymentsForProject(store, projectId);
-    const remainingBefore = getRemainingPrice(project, existing) ?? project.price;
-    const roundedAmount = Math.round(amount);
+    const validation = validatePaymentAmount(project, existing, amount);
 
-    if (roundedAmount > remainingBefore) {
+    if (!validation.ok) {
       return NextResponse.json(
-        {
-          error: `Kiritilgan summa qolgan narxdan (${remainingBefore.toLocaleString('uz-UZ')} so'm) katta`,
-          remaining: remainingBefore,
-        },
+        { error: validation.error, remaining: validation.remaining },
         { status: 400 },
       );
     }
 
     addPayment(store, {
       projectId,
-      amount: roundedAmount,
+      amount: validation.amount,
       note: note?.trim() || undefined,
     });
-
-    if (project.advancePaid && project.advanceAmount && !existing.some((p) => p.note === 'Avans')) {
-      ensureAdvancePayment(store, project);
-    }
 
     await writeStore(store, { tables: ['payments'] });
 
     const payments = getPaymentsForProject(store, projectId);
     const remaining = getRemainingPrice(project, payments);
+    const totalPaid = getTotalPaidFromList(payments);
 
     return NextResponse.json({
       payments,
-      totalPaid: getTotalPaidFromList(payments),
+      totalPaid,
       remaining,
       fullyPaid: remaining != null && remaining <= 0,
     });

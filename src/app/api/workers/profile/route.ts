@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readStore } from '@/lib/store';
 import { getWorkerRating, getWeeklyRanks, getWorkerRatingHistory } from '@/lib/rating';
-import { getSessionFromRequest, requireAdmin } from '@/lib/session';
+import { getSessionFromRequest, requireAdmin, requireAuth } from '@/lib/session';
 import { isInProgressStatus, sortWorkerActiveProjects } from '@/lib/utils';
 import type { CommentWithAuthor, Project, WorkerProfile, WorkerProfileProject } from '@/types';
 
 function mapProject(
   project: Project,
   commentsByProject: Map<string, CommentWithAuthor[]>,
+  includeComments: boolean,
 ): WorkerProfileProject {
   return {
     ...project,
-    comments: commentsByProject.get(project.id) ?? [],
+    comments: includeComments ? (commentsByProject.get(project.id) ?? []) : [],
   };
 }
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
-  if (!requireAdmin(session)) {
+  if (!requireAuth(session)) {
     return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
   }
 
@@ -34,6 +35,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Ishchi topilmadi' }, { status: 404 });
     }
 
+    const isAdmin = requireAdmin(session);
+    const isOwner = session!.id === workerId;
+    const fullAccess = isAdmin || isOwner;
+
     const rating = getWorkerRating(workerId, store.ratingEntries ?? []);
     const weeklyRank =
       getWeeklyRanks(store).find((entry) => entry.workerId === workerId)?.weeklyRank ?? null;
@@ -42,34 +47,43 @@ export async function GET(request: NextRequest) {
     for (const u of store.users) usersById.set(u.id, u);
 
     const commentsByProject = new Map<string, CommentWithAuthor[]>();
-    for (const c of store.comments ?? []) {
-      const enriched: CommentWithAuthor = {
-        ...c,
-        authorUsername: usersById.get(c.authorId)?.username ?? 'admin',
-      };
-      const list = commentsByProject.get(c.projectId) ?? [];
-      list.push(enriched);
-      commentsByProject.set(c.projectId, list);
+    if (fullAccess) {
+      for (const c of store.comments ?? []) {
+        const enriched: CommentWithAuthor = {
+          ...c,
+          authorUsername: usersById.get(c.authorId)?.username ?? 'admin',
+        };
+        const list = commentsByProject.get(c.projectId) ?? [];
+        list.push(enriched);
+        commentsByProject.set(c.projectId, list);
+      }
     }
 
     const assigned = store.projects.filter((p) => p.assignedTo === workerId);
-    const inProgress = sortWorkerActiveProjects(
-      assigned.filter((p) => isInProgressStatus(p.status)),
-    ).map((p) => mapProject(p, commentsByProject));
-    const completed = assigned
-      .filter((p) => p.status === 'completed')
-      .map((p) => mapProject(p, commentsByProject));
-    const returned = assigned
-      .filter((p) => p.returnedAt != null)
-      .map((p) => mapProject(p, commentsByProject));
+
+    let inProgress: WorkerProfileProject[] = [];
+    let completed: WorkerProfileProject[] = [];
+    let returned: WorkerProfileProject[] = [];
+
+    if (fullAccess) {
+      inProgress = sortWorkerActiveProjects(
+        assigned.filter((p) => isInProgressStatus(p.status)),
+      ).map((p) => mapProject(p, commentsByProject, true));
+      completed = assigned
+        .filter((p) => p.status === 'completed')
+        .map((p) => mapProject(p, commentsByProject, true));
+      returned = assigned
+        .filter((p) => p.returnedAt != null)
+        .map((p) => mapProject(p, commentsByProject, true));
+    }
 
     const profile: WorkerProfile = {
       worker: {
         id: worker.id,
         name: worker.name,
         username: worker.username,
-        telegramId: worker.telegramId,
-        phone: worker.phone,
+        telegramId: fullAccess ? worker.telegramId : undefined,
+        phone: fullAccess ? worker.phone : undefined,
       },
       rating,
       weeklyRank,

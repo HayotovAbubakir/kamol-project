@@ -21,6 +21,7 @@ import {
   formatPrice,
   getDeadlineUrgency,
   isReturnedCard,
+  isUnassignedAlert,
   isTerminalStatus,
   isPendingReviewStatus,
   cn,
@@ -61,6 +62,42 @@ interface ProjectCardProps {
   onStartReturnReasonEdit?: (projectId: string) => void;
   onCancelReturnReasonEdit?: () => void;
   returnReasonSaving?: boolean;
+  /** True while this card's primary action (complete/approve) is in flight. */
+  actionBusy?: boolean;
+}
+
+function UnassignedAlertStrip({
+  title,
+  hint,
+  compact = false,
+}: {
+  title: string;
+  hint?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        'relative z-[2] flex items-center gap-2.5 border-b border-orange-700/50 bg-gradient-to-r from-orange-600 to-amber-500 text-white',
+        compact ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm',
+      )}
+    >
+      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15" aria-hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        {hint ? (
+          <span className={cn('block text-white/90', compact ? 'text-[11px] line-clamp-1' : 'mt-0.5 text-xs font-medium')}>
+            {hint}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
 }
 
 function ReturnedAlertStrip({
@@ -213,6 +250,7 @@ function ProjectActions({
   showActions,
   isAdmin,
   t,
+  actionBusy = false,
   onAssign,
   onStatusChange,
   onNotes,
@@ -229,6 +267,7 @@ function ProjectActions({
   showActions?: boolean;
   isAdmin?: boolean;
   t: (key: string) => string;
+  actionBusy?: boolean;
   onAssign?: (projectId: string) => void;
   onStatusChange?: (projectId: string, status: string) => void;
   onNotes?: (projectId: string) => void;
@@ -248,7 +287,7 @@ function ProjectActions({
   return (
     <div className="ui-project-actions" style={{ flexWrap: 'wrap', gap: 8 }}>
       {project.status === 'pending' && onAssign && (
-        <button type="button" onClick={() => onAssign(project.id)} className="ui-btn-primary ui-btn-sm">
+        <button type="button" onClick={() => onAssign(project.id)} className="ui-btn-primary ui-btn-sm" disabled={actionBusy}>
           {t('project.assignToWorker')}
         </button>
       )}
@@ -257,13 +296,15 @@ function ProjectActions({
           type="button"
           onClick={() => onStatusChange(project.id, 'completed')}
           className="ui-btn-primary ui-btn-sm"
+          disabled={actionBusy}
         >
-          {t('project.complete')}
+          {actionBusy ? t('project.completing') : t('project.complete')}
         </button>
       )}
       {!isAdmin && onNotes && project.returnedAt && (
         <button
           type="button"
+          disabled={actionBusy}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -275,13 +316,14 @@ function ProjectActions({
         </button>
       )}
       {isAdmin && project.status === 'in_progress' && onReassign && (
-        <button type="button" onClick={() => onReassign(project.id)} className="ui-btn-outline ui-btn-sm">
+        <button type="button" onClick={() => onReassign(project.id)} className="ui-btn-outline ui-btn-sm" disabled={actionBusy}>
           {t('workerProfile.reassign')}
         </button>
       )}
       {isAdmin && project.status === 'in_progress' && onUnassign && (
         <button
           type="button"
+          disabled={actionBusy}
           onClick={() => onUnassign(project.id)}
           className="ui-btn-outline ui-btn-sm border-orange-500/35 text-orange-600 hover:border-orange-500 hover:bg-orange-500/10 dark:text-orange-400"
         >
@@ -293,11 +335,12 @@ function ProjectActions({
           type="button"
           onClick={() => onApprove(project.id)}
           className="ui-btn-primary ui-btn-sm"
+          disabled={actionBusy}
         >
-          {t('project.approveComplete')}
+          {actionBusy ? t('project.approving') : t('project.approveComplete')}
         </button>
       )}
-      {isAdmin && onReturn && project.status === 'completed' && (
+      {isAdmin && onReturn && (project.status === 'completed' || project.status === 'pending_review') && (
         <button
           type="button"
           onClick={() => onReturn(project.id)}
@@ -680,11 +723,13 @@ function ProjectCardImpl({
   onCancelReturnReasonEdit,
   returnReasonSaving = false,
   workerReplyMode = false,
+  actionBusy = false,
 }: ProjectCardProps) {
   const { t, locale } = useAppSettings();
   const pathname = usePathname();
   const urgency = getDeadlineUrgency(project.orderDate, project.status);
   const isReturned = isReturnedCard(project);
+  const isUnassignedOverdue = isUnassignedAlert(project);
   const isTerminal = isTerminalStatus(project.status) || isPendingReviewStatus(project.status);
   const statusLabel = isReturned
     ? t('status.returned')
@@ -702,6 +747,8 @@ function ProjectCardImpl({
       (isWorker
         ? 'ui-project-card-returned'
         : 'relative overflow-hidden border-2 border-red-500/75 bg-gradient-to-br from-red-50/95 via-white/80 to-white/70 shadow-[0_10px_28px_rgba(239,68,68,0.14)] backdrop-blur-2xl before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-[1] before:w-1 before:bg-gradient-to-b before:from-red-500 before:to-red-700 dark:border-red-500/65 dark:from-red-950/80 dark:via-[#141414]/75 dark:to-[#141414]/70 dark:shadow-[0_10px_32px_rgba(239,68,68,0.18)]'),
+    !isReturned && isUnassignedOverdue &&
+      'relative overflow-hidden border-2 border-orange-500/75 bg-gradient-to-br from-orange-50/95 via-white/80 to-white/70 shadow-[0_10px_28px_rgba(249,115,22,0.14)] backdrop-blur-2xl before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-[1] before:w-1 before:bg-gradient-to-b before:from-orange-500 before:to-amber-600 dark:border-orange-500/65 dark:from-orange-950/80 dark:via-[#141414]/75 dark:to-[#141414]/70 dark:shadow-[0_10px_32px_rgba(249,115,22,0.18)]',
     isWide && 'ui-project-card-wide',
   );
 
@@ -711,7 +758,9 @@ function ProjectCardImpl({
     'ui-project-status',
     isReturned
       ? 'border-red-500/45 bg-red-500/15 text-red-700 dark:border-red-400/45 dark:bg-red-500/20 dark:text-red-300'
-      : statusClass[displayStatus] ?? 'ui-project-status-progress',
+      : isUnassignedOverdue
+        ? 'border-orange-500/45 bg-orange-500/15 text-orange-700 dark:border-orange-400/45 dark:bg-orange-500/20 dark:text-orange-300'
+        : statusClass[displayStatus] ?? 'ui-project-status-progress',
   );
 
   const actionProps = {
@@ -719,6 +768,7 @@ function ProjectCardImpl({
     showActions,
     isAdmin,
     t,
+    actionBusy,
     onAssign,
     onStatusChange,
     onNotes,
@@ -881,12 +931,18 @@ function ProjectCardImpl({
             rejectionCount={isWide ? rejectionCount : undefined}
             rejectionLabel={isWide ? t('project.returnedTimes') : undefined}
           />
+        ) : isUnassignedOverdue ? (
+          <UnassignedAlertStrip
+            compact={isWide}
+            title={t('project.unassignedAlert')}
+            hint={isWide ? undefined : t('project.unassignedAlertHint')}
+          />
         ) : null
       }
       badges={
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className={cn(statusBadgeClass, 'shrink-0')}>{statusLabel}</span>
-          {!isTerminal && !isReturned && (
+          {!isTerminal && !isReturned && !isUnassignedOverdue && (
             <DeadlineBadge urgency={urgency} className="shrink-0" />
           )}
         </div>

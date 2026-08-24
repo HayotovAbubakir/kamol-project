@@ -187,9 +187,20 @@ create table if not exists public.monthly_winner_views (
 );
 
 -- ---------------------------------------------------------------------------
+-- Login locks (server-side IP block — never stored in the browser)
+-- ---------------------------------------------------------------------------
+create table if not exists public.login_locks (
+  lock_key text primary key,
+  fail_count int not null default 0,
+  locked_until timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security (service role only — app uses service_role key)
 -- ---------------------------------------------------------------------------
 alter table public.users enable row level security;
+alter table public.login_locks enable row level security;
 alter table public.projects enable row level security;
 alter table public.notifications enable row level security;
 alter table public.app_settings enable row level security;
@@ -296,6 +307,14 @@ do $$ begin
     where schemaname = 'public' and tablename = 'monthly_winner_views' and policyname = 'service_role_monthly_winner_views'
   ) then
     create policy "service_role_monthly_winner_views" on public.monthly_winner_views
+      for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'login_locks' and policyname = 'service_role_login_locks'
+  ) then
+    create policy "service_role_login_locks" on public.login_locks
       for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
   end if;
 end $$;

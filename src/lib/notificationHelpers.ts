@@ -7,6 +7,7 @@ export function inferNotificationEvent(message: string): NotificationEvent | und
   if (message.startsWith('Yangi buyurtma')) return 'new_order';
   if (message.includes('biriktirildi')) return 'project_assigned';
   if (message.startsWith('MUDDAT')) return 'deadline_overdue';
+  if (message.includes('ishchiga biriktirilmagan')) return 'unassigned_warning';
   if (message.startsWith('Diqqat:')) return 'deadline_warning';
   if (message.includes('Reytingingiz yangilandi')) return 'rating_changed';
   if (message.includes('Tabriklaymiz') || message.includes('TOP-3') || message.includes('🥇') || message.includes('🥈') || message.includes('🥉') || message.includes('🏆')) {

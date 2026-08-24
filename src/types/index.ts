@@ -85,6 +85,7 @@ export type NotificationEvent =
   | 'project_assigned'
   | 'deadline_overdue'
   | 'deadline_warning'
+  | 'unassigned_warning'
   | 'worker_reply'
   | 'rating_changed'
   | 'monthly_winner';

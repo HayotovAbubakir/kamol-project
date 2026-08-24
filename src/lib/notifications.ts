@@ -1,6 +1,15 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { DataStore, Project } from '@/types';
-import { formatAddress, getDeadlineUrgency, isInProgressStatus, isTerminalStatus } from '@/lib/utils';
+import {
+  formatAddress,
+  getDeadlineUrgency,
+  getDaysSinceOrder,
+  isInProgressStatus,
+  isTerminalStatus,
+  isUnassignedProject,
+} from '@/lib/utils';
+
+const UNASSIGNED_ALERT_DAYS = 3;
 
 export function syncDeadlineNotifications(store: DataStore): { store: DataStore; changed: boolean } {
   const now = new Date();
@@ -48,17 +57,59 @@ export function syncDeadlineNotifications(store: DataStore): { store: DataStore;
   return { store, changed };
 }
 
+export function syncUnassignedNotifications(store: DataStore): { store: DataStore; changed: boolean } {
+  const now = new Date();
+  let changed = false;
+
+  for (const project of store.projects) {
+    if (!isUnassignedProject(project)) continue;
+    if (getDaysSinceOrder(project.orderDate) < UNASSIGNED_ALERT_DAYS) continue;
+
+    for (const admin of store.users.filter((u) => u.role === 'admin')) {
+      const exists = store.notifications.some(
+        (n) =>
+          n.projectId === project.id &&
+          n.userId === admin.id &&
+          n.event === 'unassigned_warning',
+      );
+
+      if (!exists) {
+        store.notifications.unshift({
+          id: uuidv4(),
+          userId: admin.id,
+          message: `Diqqat: ${formatAddress(project)} — ${UNASSIGNED_ALERT_DAYS} kundan beri ishchiga biriktirilmagan`,
+          createdAt: now.toISOString(),
+          read: false,
+          type: 'warning',
+          event: 'unassigned_warning',
+          projectId: project.id,
+        });
+        changed = true;
+      }
+    }
+  }
+
+  return { store, changed };
+}
+
 let lastDeadlineSyncAt = 0;
 const DEADLINE_SYNC_MS = 60_000;
 
-/** Muddat bildirishnomalarini kamida 60 soniyada bir marta sinxronlaydi */
+/** Muddat va biriktirish ogohlantirishlarini kamida 60 soniyada bir marta sinxronlaydi */
 export function maybeSyncDeadlineNotifications(store: DataStore): { store: DataStore; changed: boolean } {
   if (Date.now() - lastDeadlineSyncAt < DEADLINE_SYNC_MS) {
     return { store, changed: false };
   }
-  const result = syncDeadlineNotifications(store);
-  if (result.changed) lastDeadlineSyncAt = Date.now();
-  return result;
+
+  let changed = false;
+  const deadline = syncDeadlineNotifications(store);
+  if (deadline.changed) changed = true;
+
+  const unassigned = syncUnassignedNotifications(deadline.store);
+  if (unassigned.changed) changed = true;
+
+  if (changed) lastDeadlineSyncAt = Date.now();
+  return { store: unassigned.store, changed };
 }
 
 export function getWorkerActiveCount(store: DataStore, workerId: string): number {

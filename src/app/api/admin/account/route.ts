@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readStore, writeStore } from '@/lib/store';
 import { hashPassword, verifyPassword } from '@/lib/password';
+import { validatePassword } from '@/lib/passwordPolicy';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -47,14 +48,17 @@ export async function PATCH(request: NextRequest) {
     const newPassword = typeof body.password === 'string' ? body.password : '';
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
 
-    if (username && (username.length < 3 || username.length > 40)) {
-      return NextResponse.json({ error: 'Login 3–40 belgi bo\'lishi kerak' }, { status: 400 });
+    if (username && username.length > 128) {
+      return NextResponse.json({ error: 'Login juda uzun' }, { status: 400 });
     }
     if (name && (name.length < 2 || name.length > 80)) {
       return NextResponse.json({ error: 'Ism 2–80 belgi bo\'lishi kerak' }, { status: 400 });
     }
-    if (newPassword && (newPassword.length < 4 || newPassword.length > 128)) {
-      return NextResponse.json({ error: 'Yangi parol kamida 4 belgi bo\'lishi kerak' }, { status: 400 });
+    if (newPassword) {
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
+      }
     }
 
     if (newPassword) {

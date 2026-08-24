@@ -171,8 +171,11 @@ export async function PATCH(request: NextRequest) {
       if (session!.role !== 'admin') {
         return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
       }
-      if (project.status !== 'completed') {
-        return NextResponse.json({ error: 'Faqat tugallangan loyihani qaytarish mumkin' }, { status: 400 });
+      if (project.status !== 'completed' && project.status !== 'pending_review') {
+        return NextResponse.json(
+          { error: 'Faqat tugallangan yoki ko\'rib chiqilmagan loyihani qaytarish mumkin' },
+          { status: 400 },
+        );
       }
       if (!body.notes?.trim()) {
         return NextResponse.json({ error: 'Qaytarish sababi majburiy' }, { status: 400 });

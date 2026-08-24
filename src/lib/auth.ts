@@ -4,10 +4,13 @@ import { clearReturnedAlertSoundFlags } from '@/lib/returnedAlertSound';
 import type { SessionUser } from '@/types';
 
 const SESSION_KEY = 'kamol_session';
+const TOKEN_KEY = 'kamol_token';
 
-export function saveSession(user: SessionUser): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+export function saveSession(user: SessionUser, token?: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
   }
 }
 
@@ -15,6 +18,11 @@ export function getSession(): SessionUser | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return null;
+  // Legacy sessions without a signed token are no longer valid.
+  if (!localStorage.getItem(TOKEN_KEY)) {
+    clearSession();
+    return null;
+  }
   try {
     return JSON.parse(raw) as SessionUser;
   } catch {
@@ -26,22 +34,14 @@ export function clearSession(): void {
   if (typeof window !== 'undefined') {
     clearReturnedAlertSoundFlags();
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }
 }
 
-function encodeSessionToken(session: SessionUser): string {
-  const json = JSON.stringify(session);
-  // Unicode-safe base64 (Uzbek/Cyrillic names break plain btoa)
-  const bytes = new TextEncoder().encode(json);
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary);
-}
-
 function getAuthHeader(): Record<string, string> {
-  const session = getSession();
-  if (!session) return {};
-  return { Authorization: `Bearer ${encodeSessionToken(session)}` };
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 }
 
 export async function apiFetch<T>(

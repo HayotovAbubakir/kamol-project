@@ -1,7 +1,11 @@
 export const RETURNED_SOUND_SESSION_PREFIX = 'kamol_returned_sound_played';
 
-const SOUND_SRC = '/sounds/returned-alert.mp3';
-const PLAY_COUNT = 3;
+const RETURNED_ALERT_SEQUENCE = [
+  '/sounds/faaah.mp3',
+  '/sounds/ack.mp3',
+  '/sounds/among-us-roundstart.mp3',
+] as const;
+
 const VOLUME = 1;
 
 function playOnce(src: string, volume: number): Promise<void> {
@@ -17,9 +21,10 @@ function playOnce(src: string, volume: number): Promise<void> {
   });
 }
 
+/** Qaytarilgan loyiha bo'lganda: faaah → ack → among-us ketma-ket. */
 export async function playReturnedAlertSound(): Promise<void> {
-  for (let i = 0; i < PLAY_COUNT; i += 1) {
-    await playOnce(SOUND_SRC, VOLUME);
+  for (const src of RETURNED_ALERT_SEQUENCE) {
+    await playOnce(src, VOLUME);
   }
 }
 
@@ -31,8 +36,4 @@ export function clearReturnedAlertSoundFlags(): void {
       sessionStorage.removeItem(key);
     }
   }
-}
-
-export function returnedSoundSessionKey(userId: string): string {
-  return `${RETURNED_SOUND_SESSION_PREFIX}_${userId}`;
 }

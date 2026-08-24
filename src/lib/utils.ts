@@ -44,6 +44,22 @@ export function isReturnedCard(project: Pick<Project, 'returnedAt' | 'status'>):
   return project.status === 'returned' || isReturnedProject(project);
 }
 
+const UNASSIGNED_ALERT_DAYS = 3;
+
+/** Yangi loyiha hali hech qaysi ishchiga biriktirilmagan */
+export function isUnassignedProject(
+  project: Pick<Project, 'status' | 'assignedTo'>,
+): boolean {
+  return project.status === 'pending' && !project.assignedTo;
+}
+
+/** 3+ kun biriktirilmagan — ogohlantirish holati */
+export function isUnassignedAlert(
+  project: Pick<Project, 'status' | 'assignedTo' | 'orderDate'>,
+): boolean {
+  return isUnassignedProject(project) && getDaysSinceOrder(project.orderDate) >= UNASSIGNED_ALERT_DAYS;
+}
+
 export function sortWorkerActiveProjects(projects: Project[]): Project[] {
   return [...projects].sort((a, b) => {
     const aReturned = isReturnedProject(a) ? 1 : 0;

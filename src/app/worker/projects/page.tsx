@@ -18,7 +18,7 @@ export default function WorkerProjectsPage() {
   const { showToast } = useToast();
   const { activeProjects, comments, loading, loadData } = useWorkerData();
   const [searchQuery, setSearchQuery] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   const filtered = useMemo(
     () => filterProjectsBySearch(activeProjects, searchQuery),
@@ -36,8 +36,8 @@ export default function WorkerProjectsPage() {
   }, [comments]);
 
   async function handleComplete(projectId: string) {
-    if (busy) return;
-    setBusy(true);
+    if (completingId) return;
+    setCompletingId(projectId);
     try {
       await apiFetch('/api/projects', {
         method: 'PATCH',
@@ -48,7 +48,7 @@ export default function WorkerProjectsPage() {
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : t('common.error'));
     } finally {
-      setBusy(false);
+      setCompletingId(null);
     }
   }
 
@@ -93,6 +93,7 @@ export default function WorkerProjectsPage() {
               variant="worker"
               comments={commentsByProject.get(project.id) ?? []}
               showActions
+              actionBusy={completingId === project.id}
               onStatusChange={(id) => handleComplete(id)}
             />
           ))}

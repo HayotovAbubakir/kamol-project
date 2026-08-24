@@ -74,6 +74,19 @@ function NotificationIcon({
       </span>
     );
   }
+  if (event === 'unassigned_warning') {
+    return (
+      <span
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-full bg-orange-500/15 font-bold text-orange-500 ring-1 ring-orange-500/25',
+          sizeClass,
+        )}
+        aria-hidden
+      >
+        !
+      </span>
+    );
+  }
   if (event === 'rating_changed') {
     return (
       <span

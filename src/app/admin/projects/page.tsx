@@ -17,7 +17,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAdminData } from '@/hooks/useAdminData';
 import { apiFetch } from '@/lib/auth';
 import { cn, extractUzbekMobileDigits, filterProjectsBySearch, formatPhoneInput, formatPrice, normalizePhone, parseNumberInput, formatNumberInput } from '@/lib/utils';
-import { getRemainingPrice } from '@/lib/payments';
+import { getRemainingPrice, validatePaymentAmount } from '@/lib/payments';
 
 function formatPhoneField(value: string): string {
   const digits = extractUzbekMobileDigits(value) ?? value.replace(/\D/g, '').slice(0, 9);
@@ -103,6 +103,7 @@ function AdminProjectsPageContent() {
     advanceAmount: string;
   } | null>(null);
   const [formBusy, setFormBusy] = useState(false);
+  const [cardBusyId, setCardBusyId] = useState<string | null>(null);
   const [paymentModalId, setPaymentModalId] = useState<string | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentNote, setPaymentNote] = useState('');
@@ -310,8 +311,9 @@ function AdminProjectsPageContent() {
   }
 
   async function handleResubmit(projectId: string) {
-    if (formBusy) return;
+    if (formBusy || cardBusyId) return;
     setFormBusy(true);
+    setCardBusyId(projectId);
     setError('');
     try {
       await apiFetch('/api/projects', {
@@ -326,12 +328,14 @@ function AdminProjectsPageContent() {
       showToast('error', msg);
     } finally {
       setFormBusy(false);
+      setCardBusyId(null);
     }
   }
 
   async function handleApprove(projectId: string) {
-    if (formBusy) return;
+    if (formBusy || cardBusyId) return;
     setFormBusy(true);
+    setCardBusyId(projectId);
     setError('');
     try {
       await apiFetch('/api/projects', {
@@ -346,6 +350,7 @@ function AdminProjectsPageContent() {
       showToast('error', msg);
     } finally {
       setFormBusy(false);
+      setCardBusyId(null);
     }
   }
 
@@ -355,12 +360,15 @@ function AdminProjectsPageContent() {
     if (!amount || amount <= 0) return;
 
     const project = projects.find((p) => p.id === paymentModalId);
-    const remaining = project
-      ? getRemainingPrice(project, projectPayments(paymentModalId))
-      : null;
-    if (remaining != null && amount > remaining) {
-      const msg = t('project.paymentExceedsRemaining').replace('{amount}', formatPrice(remaining));
-      setError(msg);
+    if (!project) return;
+
+    const validation = validatePaymentAmount(project, projectPayments(paymentModalId), amount);
+    if (!validation.ok) {
+      const msg = t('project.paymentExceedsRemaining').replace(
+        '{amount}',
+        formatPrice(validation.remaining),
+      );
+      setError(validation.error);
       showToast('error', msg);
       return;
     }
@@ -372,7 +380,7 @@ function AdminProjectsPageContent() {
         method: 'POST',
         body: JSON.stringify({
           projectId: paymentModalId,
-          amount,
+          amount: validation.amount,
           note: paymentNote.trim() || undefined,
         }),
       });
@@ -627,6 +635,7 @@ function AdminProjectsPageContent() {
                   setReturnReasonDraft('');
                 }}
                 returnReasonSaving={formBusy}
+                actionBusy={cardBusyId === project.id}
                 onAssign={(id) => {
                   setAssignModal(id);
                   setSelectedWorker(workers[0]?.id ?? '');
@@ -1019,12 +1028,14 @@ function AdminProjectsPageContent() {
             ? getRemainingPrice(paymentProject, projectPayments(paymentProject.id))
             : null;
           const amountNum = parseNumberInput(paymentAmount) ?? 0;
-          const exceeds =
-            remaining != null && amountNum > 0 && amountNum > remaining;
+          const paymentValidation = paymentProject
+            ? validatePaymentAmount(paymentProject, projectPayments(paymentProject.id), amountNum)
+            : null;
+          const exceeds = paymentValidation != null && !paymentValidation.ok;
           const exceedsMsg = exceeds
             ? t('project.paymentExceedsRemaining').replace(
                 '{amount}',
-                formatPrice(remaining ?? 0),
+                formatPrice(paymentValidation.remaining),
               )
             : '';
 

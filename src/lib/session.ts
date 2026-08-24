@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { readStore } from '@/lib/store';
+import { verifySessionToken } from '@/lib/sessionToken';
 import type { SessionUser } from '@/types';
 
 export async function getSessionFromRequest(
@@ -8,24 +9,21 @@ export async function getSessionFromRequest(
   const auth = request.headers.get('Authorization');
   if (!auth?.startsWith('Bearer ')) return null;
 
-  try {
-    const session = JSON.parse(
-      Buffer.from(auth.slice(7), 'base64').toString('utf-8'),
-    ) as SessionUser;
-    const store = await readStore();
-    const user =
-      store.users.find((u) => u.id === session.id) ??
-      store.users.find((u) => u.username === session.username);
-    if (!user) return null;
-    return {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-    };
-  } catch {
-    return null;
-  }
+  const token = auth.slice(7).trim();
+  const claims = verifySessionToken(token);
+  if (!claims) return null;
+
+  // Always load the current role from the database — never trust client claims alone.
+  const store = await readStore();
+  const user = store.users.find((u) => u.id === claims.id);
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+  };
 }
 
 export function requireAdmin(session: SessionUser | null) {

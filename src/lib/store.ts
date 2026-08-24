@@ -1,9 +1,10 @@
+import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { STORE_VERSION } from '@/data/initialStore';
-import { getSupabaseAdmin, isSupabaseConfigured } from '@/lib/supabase/admin';
+import { getSupabaseAdmin, isSupabaseConfigured, assertSupabaseInProduction } from '@/lib/supabase/admin';
 import {
   commentFromDb,
   commentToDb,
@@ -103,7 +104,16 @@ async function deleteLegacyStoreFile(): Promise<void> {
 }
 
 async function createFreshStore(): Promise<DataStore> {
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const initialPassword =
+    process.env.ADMIN_INITIAL_PASSWORD?.trim() ||
+    randomBytes(12).toString('base64url');
+  const adminPassword = await bcrypt.hash(initialPassword, 10);
+  if (!process.env.ADMIN_INITIAL_PASSWORD?.trim()) {
+    console.warn(
+      '[store] Yangi admin yaratildi. Login: admin | Parol (bir marta):',
+      initialPassword,
+    );
+  }
   return {
     version: STORE_VERSION,
     users: [
@@ -171,6 +181,7 @@ async function saveLegacyJsonStore(store: DataStore): Promise<void> {
 }
 
 async function readLocalStore(): Promise<DataStore> {
+  assertSupabaseInProduction();
   const legacy = await loadLegacyJsonStore();
   const store = legacy ?? (await createFreshStore());
   if (!legacy) await saveLegacyJsonStore(store);
@@ -297,11 +308,7 @@ export async function readStore(): Promise<DataStore> {
   const cached = getCachedStore();
   if (cached) return cached;
 
-  if (process.env.VERCEL && !isSupabaseConfigured()) {
-    throw new Error(
-      'Vercel da Supabase majburiy. Settings → Environment Variables ga NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY qo\'shing.',
-    );
-  }
+  assertSupabaseInProduction();
 
   let store: DataStore;
 
@@ -381,6 +388,8 @@ export async function persistStorePatch(store: DataStore, patch: StorePatch): Pr
   store.version = STORE_VERSION;
   setCachedStore(store);
 
+  assertSupabaseInProduction();
+
   if (!isSupabaseConfigured()) {
     await saveLegacyJsonStore(store);
     return;
@@ -437,6 +446,8 @@ export async function writeStore(
 ): Promise<void> {
   store.version = STORE_VERSION;
   setCachedStore(store);
+
+  assertSupabaseInProduction();
 
   if (!isSupabaseConfigured()) {
     await saveLegacyJsonStore(store);
@@ -578,6 +589,8 @@ export async function writeStore(
 export async function resetStore(): Promise<DataStore> {
   invalidateStoreCache();
   await deleteLegacyStoreFile();
+
+  assertSupabaseInProduction();
 
   if (!isSupabaseConfigured()) {
     const store = await createFreshStore();

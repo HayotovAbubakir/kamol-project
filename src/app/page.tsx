@@ -48,11 +48,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const data = await apiFetch<{ user: SessionUser }>('/api/auth', {
+      const data = await apiFetch<{ user: SessionUser; token: string }>('/api/auth', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       });
-      saveSession(data.user);
+      saveSession(data.user, data.token);
       router.push(data.user.role === 'admin' ? '/admin' : '/worker');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.error'));

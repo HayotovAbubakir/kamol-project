@@ -3,6 +3,10 @@ import { resetStore } from '@/lib/store';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+    return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 404 });
+  }
+
   const session = await getSessionFromRequest(request);
   if (!requireAdmin(session)) {
     return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
@@ -12,7 +16,7 @@ export async function POST(request: NextRequest) {
     await resetStore();
     return NextResponse.json({
       ok: true,
-      message: 'Admin yaratildi: admin / admin123. Ishchilarni admin paneldan qo\'shing.',
+      message: 'Ma\'lumotlar bazasi tozalandi. Yangi admin parolini server logida ko\'ring.',
     });
   } catch {
     return NextResponse.json({ error: 'Xatolik' }, { status: 500 });

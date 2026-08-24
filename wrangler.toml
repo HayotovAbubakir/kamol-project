@@ -1,0 +1,11 @@
+# Cloudflare Workers nomi (URL: kamol-project.<account>.workers.dev)
+name = "kamol-project"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Ochiq o'zgaruvchi (secret emas)
+[vars]
+# NEXT_PUBLIC_SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
+# ↑ yoki Dashboard → Workers → kamol-project → Settings → Variables orqali qo'ying
+
+# Maxfiy kalitlar: wrangler secret put SUPABASE_SERVICE_ROLE_KEY

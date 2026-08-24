@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { readStore, writeStore } from '@/lib/store';
 import { hashPassword } from '@/lib/password';
+import { validatePassword } from '@/lib/passwordPolicy';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 import { releaseWorkerProjects } from '@/lib/notifications';
 import { normalizePhone } from '@/lib/utils';
@@ -34,14 +35,15 @@ export async function POST(request: NextRequest) {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
 
-    if (!username || username.length < 3 || username.length > 40) {
-      return NextResponse.json({ error: 'Login 3–40 belgi bo\'lishi kerak' }, { status: 400 });
+    if (!username || username.length > 128) {
+      return NextResponse.json({ error: 'Login kerak' }, { status: 400 });
     }
     if (!name || name.length < 2 || name.length > 80) {
       return NextResponse.json({ error: 'Ism 2–80 belgi bo\'lishi kerak' }, { status: 400 });
     }
-    if (!password || password.length < 4 || password.length > 128) {
-      return NextResponse.json({ error: 'Parol kamida 4 belgi bo\'lishi kerak' }, { status: 400 });
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     if (store.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
@@ -93,7 +95,13 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.telegramId !== undefined) store.users[idx].telegramId = body.telegramId || undefined;
     if (body.phone !== undefined) store.users[idx].phone = normalizePhone(body.phone) || undefined;
-    if (body.password) store.users[idx].password = await hashPassword(body.password);
+    if (body.password) {
+      const passwordError = validatePassword(body.password);
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
+      }
+      store.users[idx].password = await hashPassword(body.password);
+    }
 
     await writeStore(store, { tables: ['users'] });
     return NextResponse.json({ ok: true });

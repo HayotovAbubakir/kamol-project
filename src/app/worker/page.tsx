@@ -18,7 +18,6 @@ export default function WorkerDashboardPage() {
     completedCount,
     rating,
     loading,
-    session,
   } = useWorkerData();
 
   if (loading) return <SkeletonDashboard withNotifications={false} />;
@@ -27,8 +26,6 @@ export default function WorkerDashboardPage() {
     <>
       <PageHeader
         title={t('dashboard.workerTitle')}
-        subtitle={session ? t('dashboard.workerGreeting').replace('{name}', session.name) : undefined}
-        description={t('dashboard.workerDesc')}
         actions={
           <Link href="/worker/projects">
             <Button>{t('nav.myProjects')}</Button>

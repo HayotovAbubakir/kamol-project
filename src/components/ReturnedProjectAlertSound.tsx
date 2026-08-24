@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import { useWorkerDataOptional } from '@/context/WorkerDataContext';
-import { playReturnedAlertSound, returnedSoundSessionKey } from '@/lib/returnedAlertSound';
+import { playReturnedAlertSound } from '@/lib/returnedAlertSound';
 
-/** Ishchi kirganda qaytgan loyiha bo'lsa, ogohlantirish ovozini 3 marta ijro etadi. */
+/** Qaytarilgan loyiha bo'lsa, sahifa ochilganda / refresh qilganda 3 ta ovoz ketma-ket. */
 export function ReturnedProjectAlertSound() {
   const data = useWorkerDataOptional();
   const startedRef = useRef(false);
@@ -13,11 +13,7 @@ export function ReturnedProjectAlertSound() {
     if (!data || data.loading || startedRef.current) return;
     if (data.returnedProjects.length === 0) return;
 
-    const storageKey = returnedSoundSessionKey(data.session.id);
-    if (sessionStorage.getItem(storageKey)) return;
-
     startedRef.current = true;
-    sessionStorage.setItem(storageKey, '1');
     void playReturnedAlertSound();
   }, [data]);
 

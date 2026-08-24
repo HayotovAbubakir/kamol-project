@@ -1,17 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readStore } from '@/lib/store';
 import { verifyPassword } from '@/lib/password';
+import { signSession } from '@/lib/sessionToken';
+import {
+  clearLoginAttempts,
+  getClientIp,
+  isLoginRateLimited,
+  loginLockMessage,
+  recordLoginFailure,
+  remainingLockMs,
+} from '@/lib/loginRateLimit';
 import type { SessionUser } from '@/types';
+
+async function lockResponse(key: string) {
+  const remaining = await remainingLockMs(key);
+  return NextResponse.json(
+    { error: loginLockMessage(remaining) },
+    { status: 429 },
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json();
+    const ip = getClientIp(request);
+    const body = await request.json();
+    const username = typeof body.username === 'string' ? body.username.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+
+    if (!username || !password) {
+      return NextResponse.json({ error: 'Login va parol kerak' }, { status: 400 });
+    }
+
+    const userKey = `${ip}:${username.toLowerCase()}`;
+    const ipKey = `ip:${ip}`;
+
+    if (await isLoginRateLimited(userKey)) return lockResponse(userKey);
+    if (await isLoginRateLimited(ipKey)) return lockResponse(ipKey);
+
     const store = await readStore();
-    const user = store.users.find((u) => u.username === username);
+    const user = store.users.find((u) => u.username.toLowerCase() === username.toLowerCase());
 
     if (!user || !(await verifyPassword(password, user.password))) {
+      await recordLoginFailure(userKey);
+      await recordLoginFailure(ipKey);
+      if (await isLoginRateLimited(userKey)) return lockResponse(userKey);
+      if (await isLoginRateLimited(ipKey)) return lockResponse(ipKey);
+      await new Promise((r) => setTimeout(r, 400));
       return NextResponse.json({ error: 'Login yoki parol noto\'g\'ri' }, { status: 401 });
     }
+
+    await clearLoginAttempts(userKey);
+    await clearLoginAttempts(ipKey);
 
     const session: SessionUser = {
       id: user.id,
@@ -20,10 +59,9 @@ export async function POST(request: NextRequest) {
       role: user.role,
     };
 
-    return NextResponse.json({ user: session });
+    return NextResponse.json({ user: session, token: signSession(session) });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Server xatoligi';
-    console.error('[api/auth]', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[api/auth]', err);
+    return NextResponse.json({ error: 'Server xatoligi' }, { status: 500 });
   }
 }
