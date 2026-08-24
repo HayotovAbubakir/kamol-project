@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public", "nodejs_
 
 # Cloudflare Dashboard → Settings → Build:
 #   Build command:  npm run build
-#   Deploy command: npm run deploy   (← MUHIM! npx wrangler deploy EMAS)
-# Deploy command dashboardda o'zgartirilgach, GitHub push redeployni ishga tushiradi.
+#   Deploy command: npm run deploy
+# (wrangler deploy EMAS — opennextjs-cloudflare deploy ishlatiladi)
 
 [assets]
 directory = ".open-next/assets"
