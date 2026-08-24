@@ -5,8 +5,12 @@ console.log(
   "\n>>> Build tayyor. Agar sayt ochiq bo'lsa: npm run rebuild  (yoki dev uchun: npm run dev)\n",
 );
 
-// Vercel va lokal build uchun faqat Next.js yetarli.
-if (process.env.VERCEL || !process.env.CI || !existsSync('wrangler.toml')) {
+// Vercel o'z infratuzilmasida deploy qiladi — OpenNext kerak emas.
+if (process.env.VERCEL) {
+  process.exit(0);
+}
+
+if (!existsSync('wrangler.toml')) {
   process.exit(0);
 }
 
