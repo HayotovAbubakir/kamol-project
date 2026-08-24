@@ -9,7 +9,7 @@
     "dev": "next dev -p 5173",
     "build": "next build",
     "postbuild": "node scripts/postbuild-cloudflare.mjs",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy",
+    "deploy": "opennextjs-cloudflare build && wrangler deploy --keep-vars",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cloudflare": "npm run deploy",
     "start": "next start -p 5173",

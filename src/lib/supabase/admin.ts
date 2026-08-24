@@ -1,12 +1,13 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getRuntimeEnv } from '@/lib/runtimeEnv';
 
 let adminClient: SupabaseClient | null = null;
 
 export function getSupabaseAdmin(): SupabaseClient {
   if (adminClient) return adminClient;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getRuntimeEnv('NEXT_PUBLIC_SUPABASE_URL');
+  const key = getRuntimeEnv('SUPABASE_SERVICE_ROLE_KEY');
 
   if (!url || !key) {
     throw new Error(
@@ -22,7 +23,7 @@ export function getSupabaseAdmin(): SupabaseClient {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(getRuntimeEnv('NEXT_PUBLIC_SUPABASE_URL') && getRuntimeEnv('SUPABASE_SERVICE_ROLE_KEY'));
 }
 
 /** Vercel, Cloudflare Workers/Pages va boshqa serverless muhitlar fayl tizimidan foydalana olmaydi. */
@@ -43,7 +44,7 @@ export function getServerConfigIssues(): string[] {
   if (!isSupabaseConfigured()) {
     issues.push('NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY');
   }
-  const secret = process.env.SESSION_SECRET?.trim();
+  const secret = getRuntimeEnv('SESSION_SECRET');
   if ((process.env.NODE_ENV === 'production' || mustUseSupabase()) && (!secret || secret.length < 32)) {
     issues.push('SESSION_SECRET (kamida 32 belgi)');
   }

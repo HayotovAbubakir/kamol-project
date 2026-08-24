@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { syncRuntimeEnvToProcess } from '@/lib/runtimeEnv';
 import { readStore } from '@/lib/store';
 import { verifyPassword } from '@/lib/password';
 import { signSession } from '@/lib/sessionToken';
@@ -22,6 +23,7 @@ async function lockResponse(key: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    syncRuntimeEnvToProcess();
     const ip = getClientIp(request);
     const body = await request.json();
     const username = typeof body.username === 'string' ? body.username.trim() : '';

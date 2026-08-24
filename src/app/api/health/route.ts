@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { syncRuntimeEnvToProcess } from '@/lib/runtimeEnv';
 import { getServerConfigIssues, isSupabaseConfigured, mustUseSupabase } from '@/lib/supabase/admin';
 
 /** Production sozlamalarini tekshirish (maxfiy kalitlarsiz). */
 export async function GET() {
+  syncRuntimeEnvToProcess();
   const issues = getServerConfigIssues();
   const supabaseConfigured = isSupabaseConfigured();
   const serverless = mustUseSupabase();

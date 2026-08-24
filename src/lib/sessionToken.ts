@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
+import { getRuntimeEnv } from '@/lib/runtimeEnv';
 import type { SessionUser } from '@/types';
 
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -12,9 +13,15 @@ interface TokenPayload {
 }
 
 function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET?.trim();
+  const secret = getRuntimeEnv('SESSION_SECRET');
   if (secret && secret.length >= 32) return secret;
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.WORKERS_CI) {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL ||
+    process.env.WORKERS_CI ||
+    process.env.CF_PAGES ||
+    process.env.CF_WORKER
+  ) {
     throw new Error('SESSION_SECRET majburiy (kamida 32 belgi). Cloudflare Variables & Secrets ga qo\'shing.');
   }
   // Dev-only fallback — never used in production.
