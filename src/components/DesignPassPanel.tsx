@@ -63,7 +63,7 @@ export function DesignPassPanel({ designPass, compact = false }: DesignPassPanel
             {displayPassText(designPass.seasonTheme, designPass.seasonThemeKey, locale, t)}
           </p>
           {compact && (
-            <Link href="/worker/design-pass" className="mt-2 inline-block text-xs font-semibold text-app-accent hover:underline">
+            <Link href="/worker/work-pass" className="mt-2 inline-block text-xs font-semibold text-app-accent hover:underline">
               {t('designPass.brand')} →
             </Link>
           )}

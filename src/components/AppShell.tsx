@@ -69,7 +69,7 @@ export function AppShell({ role, children }: AppShellProps) {
       { href: '/worker/completed', labelKey: 'nav.completed', icon: <CheckIcon /> },
       { href: '/worker/returned', labelKey: 'nav.returnedProjects', icon: <ReturnIcon /> },
       { href: '/worker/leaderboard', labelKey: 'nav.leaderboard', icon: <TrophyIcon /> },
-      { href: '/worker/design-pass', labelKey: 'nav.designPass', icon: <TrophyIcon /> },
+      { href: '/worker/work-pass', labelKey: 'nav.designPass', icon: <TrophyIcon /> },
       { href: '/worker/settings', labelKey: 'nav.settings', icon: <GearIcon /> },
     ];
   }, [role]);

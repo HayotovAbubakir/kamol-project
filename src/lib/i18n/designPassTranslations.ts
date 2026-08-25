@@ -1,6 +1,6 @@
-/** Design Pass i18n — uz / ru / en */
+/** Work Pass i18n — uz / ru / en */
 export const designPassUz = {
-  brand: 'Design Pass',
+  brand: 'WORK PASS',
   seasonPoints: 'Sezon ball',
   lifetimePoints: 'Jami ball',
   daysLeft: 'Qolgan kun',
@@ -18,7 +18,7 @@ export const designPassUz = {
   unlocked: 'Ochilgan',
   locked: 'Yopiq',
   season: {
-    generated: 'Design Pass',
+    generated: 'WORK PASS',
     blueprint: 'Blueprint Protocol',
     monochrome: 'Monochrome Atelier',
     copper: 'Copper Line',
@@ -136,7 +136,7 @@ export const designPassUz = {
 };
 
 export const designPassRu = {
-  brand: 'Design Pass',
+  brand: 'WORK PASS',
   seasonPoints: 'Сезонные баллы',
   lifetimePoints: 'Всего баллов',
   daysLeft: 'Осталось дней',
@@ -169,7 +169,7 @@ export const designPassRu = {
 };
 
 export const designPassEn = {
-  brand: 'Design Pass',
+  brand: 'WORK PASS',
   seasonPoints: 'Season points',
   lifetimePoints: 'Lifetime points',
   daysLeft: 'Days left',
@@ -187,7 +187,7 @@ export const designPassEn = {
   unlocked: 'Unlocked',
   locked: 'Locked',
   season: {
-    generated: 'Design Pass',
+    generated: 'WORK PASS',
     blueprint: 'Blueprint Protocol',
     monochrome: 'Monochrome Atelier',
     copper: 'Copper Line',
