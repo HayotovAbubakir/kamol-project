@@ -57,7 +57,7 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <div className="dashboard-page">
+      <div className="dashboard-page overflow-y-auto lg:overflow-hidden">
         <SkeletonDashboard compact />
       </div>
     );
@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
         />
         <StatCard
           compact
-          label={t('admin.pending')}
+          label={t('admin.pendingStat')}
           value={pendingCount}
           href="/admin/projects?tab=pending"
           icon={<ClockMini />}
@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
         />
       </div>
 
-      <div className="dashboard-bottom">
+      <div className="dashboard-bottom min-h-0 flex-none lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         <div className="dashboard-analytics-wrap min-h-0 overflow-hidden lg:col-span-2">
           <DashboardAnalytics projects={projects} workers={workers} payments={payments} compact />
         </div>

@@ -16,7 +16,7 @@ export function AssignStepIndicator({ current, labels }: AssignStepIndicatorProp
 
   return (
     <nav aria-label="Progress" className="mx-auto w-full max-w-3xl">
-      <ol className="flex items-center justify-between gap-2">
+      <ol className="flex items-start justify-between gap-1 sm:items-center sm:gap-2">
         {STEPS.map((step, index) => {
           const done = index < currentIndex;
           const active = index === currentIndex;
@@ -36,7 +36,7 @@ export function AssignStepIndicator({ current, labels }: AssignStepIndicatorProp
                 </span>
                 <span
                   className={cn(
-                    'hidden text-center text-xs font-medium sm:block',
+                    'max-w-full truncate text-center text-[9px] font-medium leading-tight xs:text-[10px] sm:block sm:text-xs',
                     active ? 'text-app-accent' : done ? 'text-app-text' : 'text-app-muted',
                   )}
                 >

@@ -3,6 +3,7 @@ import { getWorkerRating } from '@/lib/rating';
 import { maybeSettleMonthlyWinners, getPendingCongrats } from '@/lib/monthlyWinners';
 import { readStore, writeStore } from '@/lib/store';
 import { getSessionFromRequest, requireAuth } from '@/lib/session';
+import { getWorkerGamification } from '@/lib/workerGamification';
 import {
   isInProgressStatus,
   sortReturnedProjects,
@@ -16,7 +17,10 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
-  if (!requireAuth(session) || session!.role !== 'worker') {
+  if (!session) {
+    return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 401 });
+  }
+  if (!requireAuth(session) || session.role !== 'worker') {
     return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
   }
 
@@ -53,6 +57,7 @@ export async function GET(request: NextRequest) {
         returnedProjects,
         comments,
         rating,
+        gamification: getWorkerGamification(store, workerId),
         notifications,
         pendingCongrats: getPendingCongrats(store, workerId),
       },

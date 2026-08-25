@@ -13,6 +13,9 @@ const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 401 });
+  }
   if (!requireAdmin(session)) {
     return NextResponse.json({ error: 'Ruxsat yo\'q' }, { status: 403 });
   }

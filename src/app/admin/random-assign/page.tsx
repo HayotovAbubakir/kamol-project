@@ -342,7 +342,7 @@ export default function RandomAssignPage() {
             </SelectionPanel>
           </div>
 
-          <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+          <section className="ui-glass-card rounded-2xl p-4 shadow-sm dark:ring-1 dark:ring-metallic-green/15 sm:p-6">
             <h2 className="font-display text-lg font-semibold">{t('randomAssign.animationStyle')}</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {animationOptions.map((type) => (
@@ -373,7 +373,7 @@ export default function RandomAssignPage() {
             <Button
               onClick={handleGoToPreview}
               disabled={workers.length === 0 || pendingProjects.length === 0}
-              className="min-w-[240px] px-8 py-3 text-base"
+              className="w-full max-w-sm px-8 py-3 text-base sm:w-auto sm:min-w-[240px]"
             >
               {t('randomAssign.nextPreview')} →
             </Button>
@@ -383,7 +383,7 @@ export default function RandomAssignPage() {
 
       {phase === 'preview' && (
         <div className="mx-auto max-w-4xl space-y-8">
-          <section className="rounded-3xl border border-app-accent/25 bg-gradient-to-br from-app-card to-app-card-soft p-8 shadow-lg dark:ring-1 dark:ring-metallic-green/20">
+          <section className="rounded-3xl border border-app-accent/25 bg-gradient-to-br from-app-card to-app-card-soft p-4 shadow-lg dark:ring-1 dark:ring-metallic-green/20 sm:p-8">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="font-display text-xl font-bold text-app-text">
@@ -407,11 +407,11 @@ export default function RandomAssignPage() {
             />
           </section>
 
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button variant="outline" onClick={() => setPhase('setup')}>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setPhase('setup')}>
               ← {t('randomAssign.backToSelect')}
             </Button>
-            <Button onClick={handleStartAnimation} className="min-w-[240px] px-8 py-3 text-base">
+            <Button onClick={handleStartAnimation} className="w-full px-8 py-3 text-base sm:w-auto sm:min-w-[240px]">
               {t('randomAssign.startAnimation')} →
             </Button>
           </div>
@@ -419,7 +419,7 @@ export default function RandomAssignPage() {
       )}
 
       {phase === 'running' && currentPair && (
-        <div className="mx-auto flex h-[calc(100dvh-5.5rem)] max-w-2xl flex-col overflow-hidden lg:h-[calc(100dvh-4.5rem)]">
+        <div className="mx-auto flex h-[min(36rem,calc(100dvh-12rem))] max-w-2xl flex-col overflow-hidden lg:h-[calc(100dvh-8rem)]">
           <div className="mb-4 flex shrink-0 items-center gap-4">
             <span className="text-sm font-bold text-app-accent">{progressText}</span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-app-border/30">
@@ -452,11 +452,11 @@ export default function RandomAssignPage() {
 
       {phase === 'done' && (
         <div className="mx-auto max-w-2xl space-y-8 text-center">
-          <div className="rounded-3xl border border-app-accent/30 bg-app-accent/10 px-6 py-10">
+          <div className="rounded-3xl border border-app-accent/30 bg-app-accent/10 px-4 py-8 sm:px-6 sm:py-10">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-app-accent text-2xl text-white">
               ✓
             </div>
-            <h2 className="mt-4 font-display text-2xl font-bold text-app-text">
+            <h2 className="mt-4 font-display text-xl font-bold text-app-text sm:text-2xl">
               {t('randomAssign.complete')}
             </h2>
             <p className="mt-2 text-app-muted">{t('randomAssign.completeDesc')}</p>
@@ -464,11 +464,11 @@ export default function RandomAssignPage() {
 
           <ResultsList title={t('randomAssign.results')} items={results} highlight />
 
-          <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/admin/projects">
-              <Button>{t('randomAssign.backToProjects')}</Button>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            <Link href="/admin/projects" className="w-full sm:w-auto">
+              <Button className="w-full">{t('randomAssign.backToProjects')}</Button>
             </Link>
-            <Button variant="outline" onClick={handleReset}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={handleReset}>
               {t('randomAssign.start')}
             </Button>
           </div>
@@ -501,14 +501,14 @@ function SummaryStrip({
         <div
           key={item.label}
           className={cn(
-            'rounded-2xl border px-5 py-4 shadow-sm',
+            'rounded-2xl border px-4 py-3 shadow-sm sm:px-5 sm:py-4',
             item.accent
               ? 'border-app-accent/40 bg-app-accent/10'
               : 'border-app-border bg-app-card dark:ring-1 dark:ring-metallic-green/10',
           )}
         >
           <p className="text-xs font-medium uppercase tracking-wider text-app-muted">{item.label}</p>
-          <p className={cn('mt-1 font-display text-3xl font-bold', item.accent ? 'text-app-accent' : 'text-app-text')}>
+          <p className={cn('mt-1 font-display text-2xl font-bold sm:text-3xl', item.accent ? 'text-app-accent' : 'text-app-text')}>
             {item.value}
           </p>
         </div>
@@ -566,17 +566,17 @@ function SelectionPanel({
   empty?: string;
 }) {
   return (
-    <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <section className="ui-glass-card rounded-2xl p-4 shadow-sm dark:ring-1 dark:ring-metallic-green/15 sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="font-display text-lg font-semibold">{title}</h2>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="font-display text-base font-semibold sm:text-lg">{title}</h2>
           {count !== undefined && count > 0 && (
             <span className="rounded-full bg-app-accent/15 px-2.5 py-0.5 text-xs font-bold text-app-accent">
               {count}
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <button type="button" onClick={onSelectAll} className="ui-link-btn">
             {selectAllLabel}
           </button>
@@ -627,14 +627,14 @@ function ResultsList({
   highlight?: boolean;
 }) {
   return (
-    <section className="ui-glass-card rounded-2xl p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <section className="ui-glass-card rounded-2xl p-4 shadow-sm dark:ring-1 dark:ring-metallic-green/15 sm:p-6">
       <h3 className="mb-4 font-display text-lg font-semibold">{title}</h3>
       <ol className="space-y-2">
         {items.map((line, i) => (
           <li
             key={`${line}-${i}`}
             className={cn(
-              'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium animate-random-pop',
+              'flex items-start gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium animate-random-pop sm:items-center sm:px-4',
               highlight ? 'bg-app-accent/15 text-app-text' : 'bg-app-bg text-app-text',
             )}
             style={{ animationDelay: `${i * 80}ms` }}
@@ -642,7 +642,7 @@ function ResultsList({
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-app-accent text-xs font-bold text-white">
               {i + 1}
             </span>
-            {line}
+            <span className="min-w-0 break-words">{line}</span>
           </li>
         ))}
       </ol>

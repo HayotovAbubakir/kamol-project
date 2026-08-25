@@ -5,7 +5,7 @@ import { hashPassword } from '@/lib/password';
 import { validatePassword } from '@/lib/passwordPolicy';
 import { getSessionFromRequest, requireAdmin } from '@/lib/session';
 import { releaseWorkerProjects } from '@/lib/notifications';
-import { normalizePhone } from '@/lib/utils';
+import { extractUzbekMobileDigits, normalizePhone } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request);
@@ -32,14 +32,21 @@ export async function POST(request: NextRequest) {
     const store = await readStore();
 
     const username = typeof body.username === 'string' ? body.username.trim() : '';
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : '';
+    const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : '';
+    const name = (firstName ? `${firstName} ${lastName}`.trim() : '')
+      || (typeof body.name === 'string' ? body.name.trim() : '');
     const password = typeof body.password === 'string' ? body.password : '';
+    const phone = extractUzbekMobileDigits(body.phone);
 
     if (!username || username.length > 128) {
       return NextResponse.json({ error: 'Login kerak' }, { status: 400 });
     }
     if (!name || name.length < 2 || name.length > 80) {
-      return NextResponse.json({ error: 'Ism 2–80 belgi bo\'lishi kerak' }, { status: 400 });
+      return NextResponse.json({ error: 'Ism kiritilishi shart' }, { status: 400 });
+    }
+    if (!phone) {
+      return NextResponse.json({ error: 'Telefon raqam kiritilishi shart' }, { status: 400 });
     }
     const passwordError = validatePassword(password);
     if (passwordError) {
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
       name,
       role: 'worker' as const,
       telegramId: body.telegramId || undefined,
-      phone: normalizePhone(body.phone) || undefined,
+      phone: normalizePhone(phone),
     };
 
     store.users.push(worker);
@@ -86,15 +93,36 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Ishchi topilmadi' }, { status: 404 });
     }
 
-    if (body.name) store.users[idx].name = body.name;
-    if (body.username && body.username !== store.users[idx].username) {
-      if (store.users.some((u) => u.username === body.username && u.id !== body.id)) {
-        return NextResponse.json({ error: 'Bu login band' }, { status: 400 });
+    if (body.name !== undefined || body.firstName !== undefined || body.lastName !== undefined) {
+      const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : '';
+      const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : '';
+      const name = (firstName ? `${firstName} ${lastName}`.trim() : '')
+        || (typeof body.name === 'string' ? body.name.trim() : '');
+      if (!name || name.length < 2 || name.length > 80) {
+        return NextResponse.json({ error: 'Ism kiritilishi shart' }, { status: 400 });
       }
-      store.users[idx].username = body.username;
+      store.users[idx].name = name;
+    }
+    if (body.username !== undefined) {
+      const username = typeof body.username === 'string' ? body.username.trim() : '';
+      if (!username || username.length > 128) {
+        return NextResponse.json({ error: 'Login kerak' }, { status: 400 });
+      }
+      if (username.toLowerCase() !== store.users[idx].username.toLowerCase()) {
+        if (store.users.some((u) => u.username.toLowerCase() === username.toLowerCase() && u.id !== body.id)) {
+          return NextResponse.json({ error: 'Bu login band' }, { status: 400 });
+        }
+        store.users[idx].username = username;
+      }
     }
     if (body.telegramId !== undefined) store.users[idx].telegramId = body.telegramId || undefined;
-    if (body.phone !== undefined) store.users[idx].phone = normalizePhone(body.phone) || undefined;
+    if (body.phone !== undefined) {
+      const phone = extractUzbekMobileDigits(body.phone);
+      if (!phone) {
+        return NextResponse.json({ error: 'Telefon raqam kiritilishi shart' }, { status: 400 });
+      }
+      store.users[idx].phone = normalizePhone(phone);
+    }
     if (body.password) {
       const passwordError = validatePassword(body.password);
       if (passwordError) {

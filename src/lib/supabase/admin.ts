@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { getRuntimeEnv } from '@/lib/runtimeEnv';
+import { getRuntimeEnv, isServerlessRuntime } from '@/lib/runtimeEnv';
 
 let adminClient: SupabaseClient | null = null;
 
@@ -28,15 +28,7 @@ export function isSupabaseConfigured(): boolean {
 
 /** Vercel, Cloudflare Workers/Pages va boshqa serverless muhitlar fayl tizimidan foydalana olmaydi. */
 export function mustUseSupabase(): boolean {
-  return (
-    process.env.NODE_ENV === 'production' ||
-    Boolean(process.env.VERCEL) ||
-    Boolean(process.env.CF_PAGES) ||
-    Boolean(process.env.CLOUDFLARE_WORKERS) ||
-    Boolean(process.env.CF_WORKER) ||
-    Boolean(process.env.WORKERS_CI) ||
-    Boolean(process.env.WORKERS_CI_BUILD_UUID)
-  );
+  return isServerlessRuntime();
 }
 
 export function getServerConfigIssues(): string[] {
@@ -45,7 +37,7 @@ export function getServerConfigIssues(): string[] {
     issues.push('NEXT_PUBLIC_SUPABASE_URL va SUPABASE_SERVICE_ROLE_KEY');
   }
   const secret = getRuntimeEnv('SESSION_SECRET');
-  if ((process.env.NODE_ENV === 'production' || mustUseSupabase()) && (!secret || secret.length < 32)) {
+  if (isServerlessRuntime() && (!secret || secret.length < 32)) {
     issues.push('SESSION_SECRET (kamida 32 belgi)');
   }
   return issues;

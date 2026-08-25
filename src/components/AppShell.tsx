@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearSession, getSession } from '@/lib/auth';
+import { getSession, logoutRequest } from '@/lib/auth';
 import { useAdminDataOptional } from '@/context/AdminDataContext';
 import { useWorkerDataOptional } from '@/context/WorkerDataContext';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { UserAvatar } from '@/components/UserAvatar';
+import { WorkerTitleBadge } from '@/components/WorkerTitleBadge';
 import { Logo } from '@/components/Logo';
 import { PageAtmosphere } from '@/components/atmosphere/PageAtmosphere';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,7 @@ export function AppShell({ role, children }: AppShellProps) {
       { href: '/worker/completed', labelKey: 'nav.completed', icon: <CheckIcon /> },
       { href: '/worker/returned', labelKey: 'nav.returnedProjects', icon: <ReturnIcon /> },
       { href: '/worker/leaderboard', labelKey: 'nav.leaderboard', icon: <TrophyIcon /> },
+      { href: '/worker/design-pass', labelKey: 'nav.designPass', icon: <TrophyIcon /> },
       { href: '/worker/settings', labelKey: 'nav.settings', icon: <GearIcon /> },
     ];
   }, [role]);
@@ -76,8 +78,8 @@ export function AppShell({ role, children }: AppShellProps) {
     setMenuOpen(false);
   }, [pathname]);
 
-  function logout() {
-    clearSession();
+  async function logout() {
+    await logoutRequest();
     router.push('/');
   }
 
@@ -103,23 +105,23 @@ export function AppShell({ role, children }: AppShellProps) {
 
       <aside
         className={cn(
-          'ui-glass-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(17rem,88vw)] flex-col text-white transition-transform lg:w-64 lg:translate-x-0 xl:w-72 2xl:w-80',
+          'ui-glass-sidebar fixed inset-y-0 left-0 z-40 flex h-dvh min-h-0 w-[min(17rem,88vw)] flex-col overflow-hidden text-white transition-transform lg:w-64 lg:translate-x-0 xl:w-72 2xl:w-80',
           menuOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="px-5 py-6">
+        <div className="shrink-0 px-5 py-4">
           <Link
             href={root}
             aria-label={t('nav.home')}
             className="mx-auto block w-fit transition hover:opacity-95"
           >
             <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
-              <Logo size="lg" tone="dark" className="w-full max-w-[200px]" />
+              <Logo size="lg" tone="dark" className="sidebar-logo" />
             </div>
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="sidebar-nav min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-3">
           {nav.map((item) => {
             const active = isActive(pathname, item.href, root);
             const showReturnedBadge = item.href.endsWith('/returned') && returnedCount > 0;
@@ -146,7 +148,7 @@ export function AppShell({ role, children }: AppShellProps) {
           })}
         </nav>
 
-        <div className="border-t border-white/10 p-3 dark:border-metallic-green/20">
+        <div className="shrink-0 border-t border-white/10 p-3 dark:border-metallic-green/20">
           <button type="button" onClick={logout} className="ui-sidebar-btn">
             {t('common.logout')}
           </button>
@@ -157,8 +159,10 @@ export function AppShell({ role, children }: AppShellProps) {
         <PageAtmosphere />
         <header
           className={cn(
-            'ui-glass-nav z-20 flex shrink-0 items-center gap-3 border-b px-3 xs:px-4 sm:px-6 lg:px-8',
-            isAdminDashboard ? 'py-2' : 'py-3',
+            'ui-glass-nav z-20 flex shrink-0 items-center gap-2 border-b px-3 xs:gap-3 xs:px-4 sm:px-6 lg:px-8',
+            isAdminDashboard
+              ? 'pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:py-2 lg:pt-2'
+              : 'pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:py-3 lg:pt-3',
           )}
         >
           <button
@@ -176,15 +180,32 @@ export function AppShell({ role, children }: AppShellProps) {
             KAMOL PROJECT
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 xs:gap-2">
             {sessionUser && (
-              <div className="flex min-w-0 items-center gap-2 rounded-xl border border-app-border/35 bg-app-bg/35 px-2 py-1.5">
-                <UserAvatar name={sessionUser.name} seed={sessionUser.id} size="lg" />
-                <div className="min-w-0 max-w-[8rem] xs:max-w-[10rem] md:max-w-[14rem]">
+              <div className="flex min-w-0 items-center gap-2 rounded-xl border border-app-border/35 bg-app-bg/35 px-1.5 py-1 xs:px-2 xs:py-1.5">
+                <UserAvatar
+                  name={sessionUser.name}
+                  seed={sessionUser.id}
+                  size="lg"
+                  frame={role === 'worker' ? workerData?.gamification?.avatarFrame : 'default'}
+                  badge={role === 'worker' ? workerData?.gamification?.avatarBadge : undefined}
+                  designPassFrameClass={role === 'worker' ? workerData?.gamification?.designPassFrameClass : undefined}
+                  designPassFrameColor={role === 'worker' ? workerData?.gamification?.designPassFrameColor : undefined}
+                />
+                <div className="hidden min-w-0 max-w-[8rem] xs:block xs:max-w-[10rem] md:max-w-[14rem]">
                   <p className="truncate text-sm font-semibold leading-tight text-app-text">{sessionUser.name}</p>
-                  <p className="truncate text-[11px] leading-tight text-app-muted">
-                    {role === 'worker' ? t('common.roleWorker') : t('common.roleAdmin')}
-                  </p>
+                  {role === 'worker' && workerData?.gamification ? (
+                    <WorkerTitleBadge
+                      title={workerData.gamification.title}
+                      specialTitles={workerData.gamification.specialTitles}
+                      size="sm"
+                      className="mt-0.5"
+                    />
+                  ) : (
+                    <p className="truncate text-[11px] leading-tight text-app-muted">
+                      {role === 'worker' ? t('common.roleWorker') : t('common.roleAdmin')}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -209,7 +230,7 @@ export function AppShell({ role, children }: AppShellProps) {
             <button
               type="button"
               onClick={logout}
-              className="ui-btn-outline ui-btn-sm ui-touch-target lg:hidden"
+              className="ui-btn-outline ui-btn-sm ui-touch-target hidden xs:inline-flex lg:hidden"
             >
               {t('common.logout')}
             </button>
@@ -218,7 +239,7 @@ export function AppShell({ role, children }: AppShellProps) {
 
         <main
           className={cn(
-            'ui-page-shell relative z-10 flex w-full min-h-0 flex-1 flex-col overflow-x-hidden px-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] xs:px-4 sm:px-6 lg:px-8 lg:pb-8',
+            'ui-page-shell relative z-10 flex w-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] xs:px-4 sm:px-6 lg:px-8 lg:pb-8',
             isAdminDashboard ? 'overflow-hidden py-2 sm:py-2.5' : 'overflow-y-auto pt-3 sm:pt-4 md:pt-5',
           )}
         >

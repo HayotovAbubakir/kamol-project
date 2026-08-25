@@ -43,7 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="pointer-events-none fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 z-[200] flex w-full max-w-sm flex-col gap-2 px-3 sm:right-4 sm:px-0 lg:bottom-4"
+        className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-[200] flex max-w-none flex-col gap-2 sm:left-auto sm:right-4 sm:max-w-sm lg:bottom-4"
         aria-live="polite"
       >
         {toasts.map((toast) => (
@@ -59,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <span className="mt-0.5 text-lg leading-none" aria-hidden>
               {toast.type === 'success' ? '✓' : '✕'}
             </span>
-            <p className="text-sm font-medium leading-snug">{toast.message}</p>
+            <p className="break-words text-sm font-medium leading-snug">{toast.message}</p>
           </div>
         ))}
       </div>

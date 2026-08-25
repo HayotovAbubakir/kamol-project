@@ -178,6 +178,84 @@ export function extractUzbekMobileDigits(phone?: string | number | null): string
   return digits.length === 9 ? digits : null;
 }
 
+function collectUzbekMobileDigits(phone?: string | number | null): string[] {
+  if (phone == null || phone === '') return [];
+  const chunks = String(phone)
+    .split(/\s*(?:\/|,|;|\||\n| va )\s*/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const found: string[] = [];
+
+  function pushNine(digits: string) {
+    if (digits.length === 9 && !found.includes(digits)) found.push(digits);
+  }
+
+  for (const chunk of chunks) {
+    const single = extractUzbekMobileDigits(chunk);
+    if (single && chunk.replace(/\D/g, '').replace(/^998/, '').length <= 9) {
+      pushNine(single);
+      continue;
+    }
+
+    let digits = chunk.replace(/\D/g, '');
+    if (digits.startsWith('8') && digits.length >= 10 && !digits.startsWith('998')) {
+      digits = digits.slice(1);
+    }
+    while (digits.startsWith('998') && digits.length >= 12) {
+      pushNine(digits.slice(3, 12));
+      digits = digits.slice(12);
+    }
+    while (digits.length >= 9) {
+      pushNine(digits.slice(0, 9));
+      digits = digits.slice(9);
+    }
+  }
+
+  return found.slice(0, 2);
+}
+
+/** Loyiha mijozining 1–2 ta telefonini massiv qilib qaytaradi. */
+export function splitProjectPhones(phone?: string | number | null): string[] {
+  return collectUzbekMobileDigits(phone).map(formatUzbekPhoneDisplay);
+}
+
+/** 1–2 ta raqamni bitta maydonga birlashtiradi (saqlash uchun). */
+export function joinProjectPhones(
+  phones: Array<string | number | null | undefined>,
+): string | undefined {
+  const found: string[] = [];
+  for (const phone of phones) {
+    for (const digits of collectUzbekMobileDigits(phone ?? '')) {
+      if (!found.includes(digits)) found.push(digits);
+      if (found.length >= 2) {
+        return found.map(formatUzbekPhoneDisplay).join(' / ');
+      }
+    }
+  }
+  return found.length ? found.map(formatUzbekPhoneDisplay).join(' / ') : undefined;
+}
+
+export function formatProjectPhones(phone?: string | number | null): string {
+  const parts = splitProjectPhones(phone);
+  if (parts.length > 0) return parts.join(' · ');
+  if (phone == null || phone === '') return '';
+  return String(phone).trim();
+}
+
+export function parseClientFullName(input: {
+  firstName?: unknown;
+  lastName?: unknown;
+  clientName?: unknown;
+}): string | null {
+  const firstName = typeof input.firstName === 'string' ? input.firstName.trim() : '';
+  const lastName = typeof input.lastName === 'string' ? input.lastName.trim() : '';
+  if (firstName && lastName) return `${firstName} ${lastName}`;
+  const clientName = typeof input.clientName === 'string' ? input.clientName.trim() : '';
+  const parts = clientName.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return clientName;
+  return null;
+}
+
 function formatUzbekPhoneDisplay(digits: string): string {
   return `+998 (${digits.slice(0, 2)}) ${digits.slice(2, 5)}-${digits.slice(5, 7)}-${digits.slice(7, 9)}`;
 }

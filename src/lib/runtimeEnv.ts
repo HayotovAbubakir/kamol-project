@@ -11,6 +11,22 @@ const RUNTIME_ENV_KEYS = [
 
 type RuntimeEnvKey = (typeof RUNTIME_ENV_KEYS)[number];
 
+/** npm run dev — Cursor/CI dagi WORKERS_CI lokal ishlashni buzmasin. */
+export function isLocalDevelopment(): boolean {
+  return process.env.NODE_ENV === 'development';
+}
+
+/** Haqiqiy deploy (Vercel / Cloudflare). Lokal `next start` va Cursor WORKERS_CI emas. */
+export function isServerlessRuntime(): boolean {
+  if (isLocalDevelopment()) return false;
+  return (
+    Boolean(process.env.VERCEL) ||
+    Boolean(process.env.CF_PAGES) ||
+    Boolean(process.env.CLOUDFLARE_WORKERS) ||
+    Boolean(process.env.CF_WORKER)
+  );
+}
+
 function readCloudflareEnvSync(name: RuntimeEnvKey): string | undefined {
   try {
     const { env } = getCloudflareContext();

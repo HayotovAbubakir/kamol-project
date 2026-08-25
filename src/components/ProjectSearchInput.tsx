@@ -9,6 +9,7 @@ interface ProjectSearchInputProps {
   clearLabel: string;
   className?: string;
   autoFocus?: boolean;
+  enhanced?: boolean;
 }
 
 export function ProjectSearchInput({
@@ -18,6 +19,7 @@ export function ProjectSearchInput({
   clearLabel,
   className,
   autoFocus = false,
+  enhanced = false,
 }: ProjectSearchInputProps) {
   return (
     <div className={cn('relative', className)}>
@@ -34,14 +36,17 @@ export function ProjectSearchInput({
         autoFocus={autoFocus}
         autoComplete="off"
         enterKeyHint="search"
-        className="ui-input w-full !py-3 !pl-10 !pr-10"
+        className={cn(
+          'ui-input w-full !py-3 !pl-10 !pr-10 text-base sm:text-sm',
+          enhanced && 'ring-1 ring-app-accent/30',
+        )}
         aria-label={placeholder}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange('')}
-          className="ui-icon-btn absolute right-1.5 top-1/2 -translate-y-1/2"
+          className="ui-icon-btn ui-touch-target absolute right-1.5 top-1/2 -translate-y-1/2"
           aria-label={clearLabel}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">

@@ -58,6 +58,7 @@ export default function WorkerNotificationsPage() {
     <div className="mx-auto w-full max-w-4xl space-y-4 pb-6">
       <PageHeader
         title={t('notifications.title')}
+        description={t('worker.notificationsDesc')}
         actions={
           <NotificationDateFilter value={datePreset} onChange={setDatePreset} />
         }

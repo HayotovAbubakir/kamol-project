@@ -54,7 +54,7 @@ export function FortuneWheel({ label, candidates, winner, onComplete }: FortuneW
         </div>
         <div className="absolute inset-0 rounded-full border-4 border-app-accent/30 shadow-[0_0_0_6px_rgba(92,184,138,0.12)]" />
         <motion.div
-          className="relative flex h-56 w-56 items-center justify-center rounded-full shadow-2xl"
+          className="relative flex h-[min(14rem,68vw)] w-[min(14rem,68vw)] items-center justify-center rounded-full shadow-2xl sm:h-56 sm:w-56"
           style={{ background: gradient }}
           initial={{ rotate: 0 }}
           animate={{ rotate: targetRotation }}

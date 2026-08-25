@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { apiFetch, getSession } from '@/lib/auth';
 import { useNotificationPoll } from '@/hooks/useNotificationPoll';
-import type { AppNotification, PendingCongrats, Project, ProjectComment, WorkerRating } from '@/types';
+import type { AppNotification, PendingCongrats, Project, ProjectComment, WorkerGamificationProfile, WorkerRating } from '@/types';
 
 interface WorkerData {
   session: { id: string; username: string; name: string; role: 'worker' };
@@ -21,6 +21,7 @@ interface WorkerData {
   returnedProjects: Project[];
   comments: ProjectComment[];
   rating: WorkerRating | null;
+  gamification: WorkerGamificationProfile | null;
   notifications: AppNotification[];
   pendingCongrats: PendingCongrats | null;
   loading: boolean;
@@ -40,6 +41,7 @@ export function WorkerDataProvider({ children }: { children: ReactNode }) {
   const [returnedProjects, setReturnedProjects] = useState<Project[]>([]);
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [rating, setRating] = useState<WorkerRating | null>(null);
+  const [gamification, setGamification] = useState<WorkerGamificationProfile | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingCongrats, setPendingCongrats] = useState<PendingCongrats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +62,7 @@ export function WorkerDataProvider({ children }: { children: ReactNode }) {
         returnedProjects: Project[];
         comments: ProjectComment[];
         rating: WorkerRating;
+        gamification: WorkerGamificationProfile;
         notifications: AppNotification[];
         pendingCongrats: PendingCongrats | null;
       }>('/api/worker/bootstrap');
@@ -69,6 +72,7 @@ export function WorkerDataProvider({ children }: { children: ReactNode }) {
       setReturnedProjects(res.returnedProjects);
       setComments(res.comments ?? []);
       setRating(res.rating ?? null);
+      setGamification(res.gamification ?? null);
       setNotifications(res.notifications ?? []);
       setPendingCongrats(res.pendingCongrats ?? null);
 
@@ -114,6 +118,7 @@ export function WorkerDataProvider({ children }: { children: ReactNode }) {
       returnedProjects,
       comments,
       rating,
+      gamification,
       notifications,
       pendingCongrats,
       loading,
@@ -128,6 +133,7 @@ export function WorkerDataProvider({ children }: { children: ReactNode }) {
       returnedProjects,
       comments,
       rating,
+      gamification,
       notifications,
       pendingCongrats,
       loading,

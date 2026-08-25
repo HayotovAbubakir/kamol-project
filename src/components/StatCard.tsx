@@ -20,7 +20,7 @@ export function StatCard({ label, value, href, hint, icon, compact = false }: St
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className={cn('font-semibold uppercase text-app-muted', compact ? 'text-[11px] tracking-wide tv:text-xs tv:tracking-[0.16em]' : 'text-xs tracking-[0.16em]')}>
+        <p className={cn('break-words font-semibold uppercase leading-tight text-app-muted', compact ? 'text-[11px] tracking-wide tv:text-xs tv:tracking-[0.16em]' : 'text-xs tracking-[0.16em]')}>
           {label}
         </p>
         {icon && (

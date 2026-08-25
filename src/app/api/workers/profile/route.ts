@@ -3,6 +3,7 @@ import { readStore } from '@/lib/store';
 import { getWorkerRating, getWeeklyRanks, getWorkerRatingHistory } from '@/lib/rating';
 import { getSessionFromRequest, requireAdmin, requireAuth } from '@/lib/session';
 import { isInProgressStatus, sortWorkerActiveProjects } from '@/lib/utils';
+import { getWorkerGamification } from '@/lib/workerGamification';
 import type { CommentWithAuthor, Project, WorkerProfile, WorkerProfileProject } from '@/types';
 
 function mapProject(
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
       },
       rating,
       weeklyRank,
+      gamification: getWorkerGamification(store, workerId),
       inProgress,
       completed,
       returned,

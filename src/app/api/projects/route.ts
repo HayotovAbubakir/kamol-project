@@ -7,7 +7,7 @@ import { maybeSyncDeadlineNotifications } from '@/lib/notifications';
 import { getSessionFromRequest, requireAdmin, requireAuth } from '@/lib/session';
 import { applyReturnRatingEntries, createRatingEntry, getWorkerRating, notifyStarRatingChange } from '@/lib/rating';
 import { getWorkerName } from '@/lib/notificationHelpers';
-import { isInProgressStatus, isTerminalStatus, isWorkerCompletedStatus, isWorkerLockedStatus, formatAddress, normalizePhone, parseOptionalNumber, sortReturnedProjects, sortWorkerActiveProjects, validateProjectPricing } from '@/lib/utils';
+import { isInProgressStatus, isTerminalStatus, isWorkerCompletedStatus, isWorkerLockedStatus, formatAddress, joinProjectPhones, parseClientFullName, parseOptionalNumber, sortReturnedProjects, sortWorkerActiveProjects, validateProjectPricing } from '@/lib/utils';
 import { ensureAdvancePayment } from '@/lib/payments';
 import { upsertProjectComment, replaceAdminCommentRating } from '@/lib/comments';
 import type { Project, ProjectStatus } from '@/types';
@@ -84,10 +84,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const store = await readStore();
 
-    const clientName = typeof body.clientName === 'string' ? body.clientName.trim() : '';
+    const clientName = parseClientFullName(body);
     const address = typeof body.address === 'string' ? body.address.trim() : '';
+    const phone = joinProjectPhones([body.phone, body.phone2]);
     if (!clientName || !address) {
-      return NextResponse.json({ error: 'Ism va manzil kiritilishi shart' }, { status: 400 });
+      return NextResponse.json({ error: 'Ism, familiya va manzil kiritilishi shart' }, { status: 400 });
+    }
+    if (!phone) {
+      return NextResponse.json({ error: 'Kamida bitta telefon raqam kiritilishi shart' }, { status: 400 });
     }
 
     const project: Project = {
@@ -95,7 +99,7 @@ export async function POST(request: NextRequest) {
       title: (typeof body.title === 'string' && body.title.trim()) || clientName,
       clientName,
       address,
-      phone: normalizePhone(body.phone) || undefined,
+      phone,
       price: parseOptionalNumber(body.price),
       advancePaid: !!body.advancePaid,
       advanceAmount: body.advancePaid ? parseOptionalNumber(body.advanceAmount) : undefined,
@@ -245,9 +249,26 @@ export async function PATCH(request: NextRequest) {
 
     if (session!.role === 'admin') {
       if (typeof body.title === 'string' && body.title.trim()) updates.title = body.title.trim();
-      if (typeof body.clientName === 'string' && body.clientName.trim()) updates.clientName = body.clientName.trim();
+      if (
+        typeof body.clientName === 'string' ||
+        typeof body.firstName === 'string' ||
+        typeof body.lastName === 'string'
+      ) {
+        const clientName = parseClientFullName(body);
+        if (!clientName) {
+          return NextResponse.json({ error: 'Ism va familiya kiritilishi shart' }, { status: 400 });
+        }
+        updates.clientName = clientName;
+        if (!updates.title) updates.title = clientName;
+      }
       if (typeof body.address === 'string' && body.address.trim()) updates.address = body.address.trim();
-      if (body.phone !== undefined) updates.phone = normalizePhone(body.phone) || undefined;
+      if (body.phone !== undefined || body.phone2 !== undefined) {
+        const phone = joinProjectPhones([body.phone, body.phone2]);
+        if (!phone) {
+          return NextResponse.json({ error: 'Kamida bitta telefon raqam kiritilishi shart' }, { status: 400 });
+        }
+        updates.phone = phone;
+      }
       if (body.price !== undefined) updates.price = parseOptionalNumber(body.price);
       if (body.advancePaid !== undefined) updates.advancePaid = !!body.advancePaid;
       if (body.advanceAmount !== undefined) {

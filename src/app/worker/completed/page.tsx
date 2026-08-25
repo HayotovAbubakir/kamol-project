@@ -117,7 +117,6 @@ export default function WorkerCompletedPage() {
       <PageHeader
         title={t('worker.completedTitle')}
         subtitle={periodLabel}
-        description={t('worker.completedDesc')}
         actions={
           <CompletedDateFilter selection={selection} onChange={setSelection} />
         }

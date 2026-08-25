@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ProjectCard } from '@/components/ProjectCard';
 import { PaymentHistoryList } from '@/components/PaymentHistoryList';
 import { ProjectSearchInput } from '@/components/ProjectSearchInput';
+import { CompletedDateFilter } from '@/components/CompletedDateFilter';
 import { ProjectTabIcon } from '@/components/icons/ProjectTabIcon';
 import { Button, Input, Modal, NumberInput, ConfirmModal, uiFieldLabelClass, uiInputClass, uiInputGroupClass, uiSelectClass, uiTogglePanelClass, uiTogglePanelActiveClass } from '@/components/ui';
 import type { CommentSentiment } from '@/types';
@@ -16,8 +17,14 @@ import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useAdminData } from '@/hooks/useAdminData';
 import { apiFetch } from '@/lib/auth';
-import { cn, extractUzbekMobileDigits, filterProjectsBySearch, formatPhoneInput, formatPrice, normalizePhone, parseNumberInput, formatNumberInput } from '@/lib/utils';
+import { cn, extractUzbekMobileDigits, filterProjectsBySearch, formatPhoneInput, formatPrice, joinProjectPhones, parseNumberInput, formatNumberInput, splitProjectPhones } from '@/lib/utils';
 import { getRemainingPrice, validatePaymentAmount } from '@/lib/payments';
+import {
+  filterProjectsByOrderDate,
+  formatCompletedPeriodLabel,
+  getCompletedDateRange,
+  type CompletedDateSelection,
+} from '@/lib/completedDateFilter';
 
 function formatPhoneField(value: string): string {
   const digits = extractUzbekMobileDigits(value) ?? value.replace(/\D/g, '').slice(0, 9);
@@ -29,6 +36,7 @@ const EMPTY_NEW_PROJECT = {
   lastName: '',
   address: '',
   phone: '',
+  phone2: '',
   price: '',
   advancePaid: false,
   advanceAmount: '',
@@ -53,7 +61,7 @@ function AdminProjectsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabFromUrl = parseProjectTab(searchParams.get('tab'));
-  const { t } = useAppSettings();
+  const { t, locale } = useAppSettings();
   const { showToast } = useToast();
   const {
     projects,
@@ -70,6 +78,24 @@ function AdminProjectsPageContent() {
 
   const [tab, setTab] = useState<ProjectTab>(tabFromUrl);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateSelection, setDateSelection] = useState<CompletedDateSelection>({
+    kind: 'preset',
+    preset: 'this_week',
+  });
+
+  const periodRange = useMemo(() => getCompletedDateRange(dateSelection), [dateSelection]);
+  const periodLabel = useMemo(
+    () => formatCompletedPeriodLabel(periodRange.start, periodRange.end, locale),
+    [periodRange, locale],
+  );
+  const customDateReady =
+    dateSelection.kind !== 'custom' ||
+    (Boolean(dateSelection.start) && Boolean(dateSelection.end));
+
+  const projectsByDate = useMemo(
+    () => filterProjectsByOrderDate(projects, dateSelection),
+    [projects, dateSelection],
+  );
 
   useEffect(() => {
     setTab(tabFromUrl);
@@ -86,6 +112,7 @@ function AdminProjectsPageContent() {
   const [unassignId, setUnassignId] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newProject, setNewProject] = useState({ ...EMPTY_NEW_PROJECT });
+  const [showSecondPhone, setShowSecondPhone] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [returnId, setReturnId] = useState<string | null>(null);
   const [returnNote, setReturnNote] = useState('');
@@ -98,10 +125,12 @@ function AdminProjectsPageContent() {
     lastName: string;
     address: string;
     phone: string;
+    phone2: string;
     price: string;
     advancePaid: boolean;
     advanceAmount: string;
   } | null>(null);
+  const [editShowSecondPhone, setEditShowSecondPhone] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
   const [cardBusyId, setCardBusyId] = useState<string | null>(null);
   const [paymentModalId, setPaymentModalId] = useState<string | null>(null);
@@ -156,6 +185,7 @@ function AdminProjectsPageContent() {
   function closeNewForm() {
     setShowNewForm(false);
     setNewProject({ ...EMPTY_NEW_PROJECT });
+    setShowSecondPhone(false);
   }
 
   function closeAssignModal() {
@@ -177,6 +207,17 @@ function AdminProjectsPageContent() {
 
   const tabProjects = useMemo(
     () =>
+      projectsByDate.filter((p) => {
+        if (tab === 'completed') return p.status === 'completed';
+        if (tab === 'pending') return p.status === 'pending';
+        if (tab === 'review') return p.status === 'pending_review';
+        return p.status === 'in_progress';
+      }),
+    [projectsByDate, tab],
+  );
+
+  const tabProjectsAllTime = useMemo(
+    () =>
       projects.filter((p) => {
         if (tab === 'completed') return p.status === 'completed';
         if (tab === 'pending') return p.status === 'pending';
@@ -192,11 +233,11 @@ function AdminProjectsPageContent() {
   );
 
   const tabCounts = useMemo(() => ({
-    pending: projects.filter((p) => p.status === 'pending').length,
-    active: projects.filter((p) => p.status === 'in_progress').length,
-    review: projects.filter((p) => p.status === 'pending_review').length,
-    completed: projects.filter((p) => p.status === 'completed').length,
-  }), [projects]);
+    pending: projectsByDate.filter((p) => p.status === 'pending').length,
+    active: projectsByDate.filter((p) => p.status === 'in_progress').length,
+    review: projectsByDate.filter((p) => p.status === 'pending_review').length,
+    completed: projectsByDate.filter((p) => p.status === 'completed').length,
+  }), [projectsByDate]);
 
   async function handleAssign(projectId: string) {
     if (!selectedWorker || formBusy) return;
@@ -264,7 +305,16 @@ function AdminProjectsPageContent() {
   async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault();
     if (formBusy) return;
-    const clientName = `${newProject.firstName} ${newProject.lastName}`.trim();
+    const firstName = newProject.firstName.trim();
+    const lastName = newProject.lastName.trim();
+    const clientName = `${firstName} ${lastName}`.trim();
+    const phone = joinProjectPhones([newProject.phone, newProject.phone2]);
+    if (!firstName || !lastName || !phone) {
+      const msg = t('admin.clientRequiredFields');
+      setError(msg);
+      showToast('error', msg);
+      return;
+    }
     setFormBusy(true);
     setError('');
     try {
@@ -273,8 +323,10 @@ function AdminProjectsPageContent() {
         body: JSON.stringify({
           title: clientName,
           clientName,
+          firstName,
+          lastName,
           address: newProject.address,
-          phone: normalizePhone(newProject.phone) || undefined,
+          phone,
           advancePaid: newProject.advancePaid,
           price: newProject.price ? Number(newProject.price) : undefined,
           advanceAmount: newProject.advanceAmount ? Number(newProject.advanceAmount) : undefined,
@@ -475,23 +527,34 @@ function AdminProjectsPageContent() {
     const p = projects.find((pr) => pr.id === id);
     if (!p) return;
     const nameParts = p.clientName.split(' ');
-    const digits = extractUzbekMobileDigits(p.phone ?? '') ?? '';
+    const phones = splitProjectPhones(p.phone);
     setEditProject({
       id: p.id,
       firstName: nameParts[0] ?? '',
       lastName: nameParts.slice(1).join(' '),
       address: p.address,
-      phone: formatPhoneInput(digits),
+      phone: phones[0] ? formatPhoneField(phones[0]) : formatPhoneField(p.phone ?? ''),
+      phone2: phones[1] ? formatPhoneField(phones[1]) : '',
       price: p.price != null ? String(p.price) : '',
       advancePaid: p.advancePaid,
       advanceAmount: p.advanceAmount != null ? String(p.advanceAmount) : '',
     });
+    setEditShowSecondPhone(phones.length > 1);
   }
 
   async function handleEditProject(e: React.FormEvent) {
     e.preventDefault();
     if (!editProject || formBusy) return;
-    const clientName = `${editProject.firstName} ${editProject.lastName}`.trim();
+    const firstName = editProject.firstName.trim();
+    const lastName = editProject.lastName.trim();
+    const clientName = `${firstName} ${lastName}`.trim();
+    const phone = joinProjectPhones([editProject.phone, editProject.phone2]);
+    if (!firstName || !lastName || !phone) {
+      const msg = t('admin.clientRequiredFields');
+      setError(msg);
+      showToast('error', msg);
+      return;
+    }
     setFormBusy(true);
     setError('');
     try {
@@ -501,14 +564,17 @@ function AdminProjectsPageContent() {
           id: editProject.id,
           title: clientName,
           clientName,
+          firstName,
+          lastName,
           address: editProject.address,
-          phone: normalizePhone(editProject.phone) || undefined,
+          phone,
           price: editProject.price ? Number(editProject.price) : undefined,
           advancePaid: editProject.advancePaid,
           advanceAmount: editProject.advanceAmount ? Number(editProject.advanceAmount) : undefined,
         }),
       });
       setEditProject(null);
+      setEditShowSecondPhone(false);
       await loadData({ silent: true });
       showToast('success', t('toast.saved'));
     } catch (err) {
@@ -519,6 +585,19 @@ function AdminProjectsPageContent() {
       setFormBusy(false);
     }
   }
+
+  const canCreateClient =
+    newProject.firstName.trim().length > 0 &&
+    newProject.lastName.trim().length > 0 &&
+    newProject.address.trim().length > 0 &&
+    Boolean(joinProjectPhones([newProject.phone, newProject.phone2]));
+  const canEditClient = Boolean(
+    editProject &&
+      editProject.firstName.trim() &&
+      editProject.lastName.trim() &&
+      editProject.address.trim() &&
+      joinProjectPhones([editProject.phone, editProject.phone2]),
+  );
 
   if (loading) return <SkeletonPage />;
 
@@ -537,6 +616,13 @@ function AdminProjectsPageContent() {
                 (pendingCount === 0 || workers.length === 0) && 'pointer-events-none opacity-50',
               )}
               aria-disabled={pendingCount === 0 || workers.length === 0}
+              title={
+                workers.length === 0
+                  ? t('admin.randomAssignNeedWorkers')
+                  : pendingCount === 0
+                    ? t('admin.randomAssignNeedOrders')
+                    : undefined
+              }
               tabIndex={pendingCount === 0 || workers.length === 0 ? -1 : 0}
             >
               {t('admin.randomAssign')} ({pendingCount})
@@ -569,25 +655,62 @@ function AdminProjectsPageContent() {
         ))}
       </div>
 
-      <div className="mb-4 mt-3">
+      <div className="mb-4 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <ProjectSearchInput
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder={t('common.searchProjectsPlaceholder')}
           clearLabel={t('common.searchClear')}
+          className="sm:flex-1"
         />
-        {searchQuery.trim() && tabProjects.length > 0 && (
-          <p className="mt-2 text-xs text-app-muted">
-            {filtered.length} / {tabProjects.length}
-          </p>
-        )}
+        <CompletedDateFilter selection={dateSelection} onChange={setDateSelection} />
       </div>
+      <p className="-mt-2 mb-4 text-xs text-app-muted">{periodLabel}</p>
+      {searchQuery.trim() && tabProjects.length > 0 && (
+        <p className="-mt-2 mb-4 text-xs text-app-muted">
+          {filtered.length} / {tabProjects.length}
+        </p>
+      )}
 
-      {tabProjects.length === 0 ? (
+      {!customDateReady ? (
         <EmptyState
-          title={t('dashboard.noSectionProjects')}
-          description={t('dashboard.noSectionDesc')}
-          action={<Button onClick={() => setShowNewForm(true)}>+ {t('admin.newOrder')}</Button>}
+          title={t('worker.completedCustomRange')}
+          description={t('worker.completedCustomRangeHint')}
+        />
+      ) : tabProjects.length === 0 && tabProjectsAllTime.length > 0 ? (
+        <EmptyState
+          title={t('admin.noProjectsInPeriod')}
+          description={t('admin.noProjectsInPeriodDesc')}
+        />
+      ) : tabProjects.length === 0 ? (
+        <EmptyState
+          title={
+            tab === 'pending'
+              ? t('dashboard.noSectionPending')
+              : tab === 'active'
+                ? t('dashboard.noSectionActive')
+                : tab === 'review'
+                  ? t('dashboard.noSectionReview')
+                  : t('dashboard.noSectionCompleted')
+          }
+          description={
+            tab === 'pending'
+              ? t('dashboard.noSectionPendingDesc')
+              : tab === 'active'
+                ? t('dashboard.noSectionActiveDesc')
+                : tab === 'review'
+                  ? t('dashboard.noSectionReviewDesc')
+                  : t('dashboard.noSectionCompletedDesc')
+          }
+          action={
+            tab === 'pending' ? (
+              <Button onClick={() => setShowNewForm(true)}>+ {t('admin.newOrder')}</Button>
+            ) : tab === 'active' && pendingCount > 0 ? (
+              <Link href="/admin/projects?tab=pending">
+                <Button>{t('admin.pending')}</Button>
+              </Link>
+            ) : undefined
+          }
         />
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -673,7 +796,7 @@ function AdminProjectsPageContent() {
             <option key={w.id} value={w.id}>{w.name}</option>
           ))}
         </select>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-col gap-2 xs:flex-row">
           <Button className="flex-1" disabled={formBusy} onClick={() => assignModal && handleAssign(assignModal)}>
             {formBusy ? t('common.assigning') : t('common.assign')}
           </Button>
@@ -696,7 +819,7 @@ function AdminProjectsPageContent() {
               <option key={w.id} value={w.id}>{w.name}</option>
             ))}
         </select>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-col gap-2 xs:flex-row">
           <Button
             className="flex-1"
             disabled={!reassignWorker || formBusy}
@@ -736,22 +859,21 @@ function AdminProjectsPageContent() {
             </div>
             <div>
               <label className={uiFieldLabelClass}>{t('admin.phone')}</label>
-              <div className={cn(uiInputGroupClass, 'mt-1.5')}>
-                <span className="select-none pl-3 text-sm text-app-muted">+998</span>
-                <input
-                  type="tel"
-                  value={newProject.phone}
-                  onChange={(e) => {
-                    setNewProject({ ...newProject, phone: formatPhoneField(e.target.value) });
-                  }}
-                  onPaste={(e) => {
-                    e.preventDefault();
-                    setNewProject({ ...newProject, phone: formatPhoneField(e.clipboardData.getData('text')) });
-                  }}
-                  placeholder={t('admin.phonePlaceholder')}
-                  className="w-full bg-transparent px-1 py-2 text-sm text-app-text outline-none"
-                />
-              </div>
+              <ClientPhoneFields
+                phone={newProject.phone}
+                phone2={newProject.phone2}
+                showSecond={showSecondPhone}
+                placeholder={t('admin.phonePlaceholder')}
+                addLabel={t('admin.addPhone')}
+                removeLabel={t('admin.removePhone')}
+                onPhoneChange={(phone) => setNewProject({ ...newProject, phone })}
+                onPhone2Change={(phone2) => setNewProject({ ...newProject, phone2 })}
+                onAddSecond={() => setShowSecondPhone(true)}
+                onRemoveSecond={() => {
+                  setShowSecondPhone(false);
+                  setNewProject({ ...newProject, phone2: '' });
+                }}
+              />
             </div>
             <NumberInput
               label={t('admin.price')}
@@ -800,8 +922,8 @@ function AdminProjectsPageContent() {
               </div>
             </div>
           </div>
-          <div className="mt-5 flex gap-2">
-            <Button type="submit" disabled={formBusy}>
+          <div className="mt-5 flex flex-col gap-2 xs:flex-row">
+            <Button type="submit" disabled={formBusy || !canCreateClient}>
               {formBusy ? t('common.creating') : t('common.save')}
             </Button>
             <Button variant="outline" type="button" onClick={closeNewForm} disabled={formBusy}>
@@ -812,7 +934,17 @@ function AdminProjectsPageContent() {
       </Modal>
 
       {/* Edit modal */}
-      <Modal open={!!editProject} title={t('common.edit')} onClose={() => { if (!formBusy) setEditProject(null); }} size="lg">
+      <Modal
+        open={!!editProject}
+        title={t('common.edit')}
+        onClose={() => {
+          if (!formBusy) {
+            setEditProject(null);
+            setEditShowSecondPhone(false);
+          }
+        }}
+        size="lg"
+      >
         {editProject && (
           <form onSubmit={handleEditProject}>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -839,22 +971,21 @@ function AdminProjectsPageContent() {
               </div>
               <div>
                 <label className={uiFieldLabelClass}>{t('admin.phone')}</label>
-                <div className={cn(uiInputGroupClass, 'mt-1.5')}>
-                  <span className="select-none pl-3 text-sm text-app-muted">+998</span>
-                  <input
-                    type="tel"
-                    value={editProject.phone}
-                    onChange={(e) => {
-                      setEditProject({ ...editProject, phone: formatPhoneField(e.target.value) });
-                    }}
-                    onPaste={(e) => {
-                      e.preventDefault();
-                      setEditProject({ ...editProject, phone: formatPhoneField(e.clipboardData.getData('text')) });
-                    }}
-                    placeholder={t('admin.phonePlaceholder')}
-                    className="w-full bg-transparent px-1 py-2 text-sm text-app-text outline-none"
-                  />
-                </div>
+                <ClientPhoneFields
+                  phone={editProject.phone}
+                  phone2={editProject.phone2}
+                  showSecond={editShowSecondPhone}
+                  placeholder={t('admin.phonePlaceholder')}
+                  addLabel={t('admin.addPhone')}
+                  removeLabel={t('admin.removePhone')}
+                  onPhoneChange={(phone) => setEditProject({ ...editProject, phone })}
+                  onPhone2Change={(phone2) => setEditProject({ ...editProject, phone2 })}
+                  onAddSecond={() => setEditShowSecondPhone(true)}
+                  onRemoveSecond={() => {
+                    setEditShowSecondPhone(false);
+                    setEditProject({ ...editProject, phone2: '' });
+                  }}
+                />
               </div>
               <NumberInput
                 label={t('admin.price')}
@@ -901,11 +1032,18 @@ function AdminProjectsPageContent() {
                 </div>
               </div>
             </div>
-            <div className="mt-5 flex gap-2">
-              <Button type="submit" disabled={formBusy}>
-              {formBusy ? t('common.saving') : t('common.save')}
-            </Button>
-              <Button variant="outline" type="button" onClick={() => setEditProject(null)}>
+            <div className="mt-5 flex flex-col gap-2 xs:flex-row">
+              <Button type="submit" disabled={formBusy || !canEditClient}>
+                {formBusy ? t('common.saving') : t('common.save')}
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setEditProject(null);
+                  setEditShowSecondPhone(false);
+                }}
+              >
                 {t('common.cancel')}
               </Button>
             </div>
@@ -927,7 +1065,7 @@ function AdminProjectsPageContent() {
           rows={4}
           className={cn(uiInputClass, 'resize-none')}
         />
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-col gap-2 xs:flex-row">
           <Button
             onClick={handleReturn}
             disabled={!returnNote.trim() || formBusy}
@@ -996,7 +1134,7 @@ function AdminProjectsPageContent() {
               className={cn(uiInputClass, 'resize-none')}
               autoFocus
             />
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col gap-2 xs:flex-row">
               <Button onClick={handleComment} disabled={!commentText.trim() || formBusy}>
                 {formBusy ? t('common.saving') : `💬 ${t('common.save')}`}
               </Button>
@@ -1086,7 +1224,7 @@ function AdminProjectsPageContent() {
                 placeholder={t('project.paymentNotePlaceholder')}
                 className="mt-3"
               />
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-col gap-2 xs:flex-row">
                 <Button
                   className="flex-1"
                   disabled={formBusy || !paymentAmount.trim() || exceeds}
@@ -1135,5 +1273,91 @@ function AdminProjectsPageContent() {
         onCancel={() => setUnassignId(null)}
       />
     </>
+  );
+}
+
+function ClientPhoneFields({
+  phone,
+  phone2,
+  showSecond,
+  placeholder,
+  addLabel,
+  removeLabel,
+  onPhoneChange,
+  onPhone2Change,
+  onAddSecond,
+  onRemoveSecond,
+}: {
+  phone: string;
+  phone2: string;
+  showSecond: boolean;
+  placeholder: string;
+  addLabel: string;
+  removeLabel: string;
+  onPhoneChange: (value: string) => void;
+  onPhone2Change: (value: string) => void;
+  onAddSecond: () => void;
+  onRemoveSecond: () => void;
+}) {
+  return (
+    <div className="mt-1.5 space-y-2">
+      <div className="flex items-stretch gap-2">
+        <PhoneInput value={phone} onChange={onPhoneChange} placeholder={placeholder} />
+        {!showSecond && (
+          <button
+            type="button"
+            onClick={onAddSecond}
+            className="ui-icon-btn shrink-0 self-center"
+            aria-label={addLabel}
+            title={addLabel}
+          >
+            +
+          </button>
+        )}
+      </div>
+      {showSecond && (
+        <div className="flex items-stretch gap-2">
+          <PhoneInput value={phone2} onChange={onPhone2Change} placeholder={placeholder} />
+          <button
+            type="button"
+            onClick={onRemoveSecond}
+            className="ui-icon-btn shrink-0 self-center"
+            aria-label={removeLabel}
+            title={removeLabel}
+          >
+            −
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhoneInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className={cn(uiInputGroupClass, 'min-w-0 flex-1')}>
+      <span className="select-none pl-3 text-sm text-app-muted">+998</span>
+      <input
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel-national"
+        value={value}
+        onChange={(e) => onChange(formatPhoneField(e.target.value))}
+        onPaste={(e) => {
+          e.preventDefault();
+          onChange(formatPhoneField(e.clipboardData.getData('text')));
+        }}
+        placeholder={placeholder}
+        className="w-full bg-transparent px-1 py-2 text-sm text-app-text outline-none"
+      />
+    </div>
   );
 }

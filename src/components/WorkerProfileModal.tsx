@@ -8,6 +8,7 @@ import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { apiFetch } from '@/lib/auth';
 import { cn, formatDate, formatDateTime, formatWeeklyRank, isReturnedProject } from '@/lib/utils';
+import { WorkerGamificationPanel } from '@/components/WorkerGamificationPanel';
 import type { CommentSentiment, CommentWithAuthor, RatingHistoryItem, WorkerProfile, WorkerProfileProject, WorkerSummary } from '@/types';
 
 interface WorkerProfileModalProps {
@@ -171,11 +172,11 @@ function CommentEditor({
             className={cn(uiInputClass, 'resize-none')}
             autoFocus
           />
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={handleSave} disabled={!text.trim() || saving}>
+          <div className="mt-3 flex flex-col gap-2 xs:flex-row">
+            <Button size="sm" className="w-full xs:w-auto" onClick={handleSave} disabled={!text.trim() || saving}>
               {saving ? t('common.saving') : t('common.save')}
             </Button>
-            <Button size="sm" variant="outline" onClick={onCancel}>
+            <Button size="sm" variant="outline" className="w-full xs:w-auto" onClick={onCancel}>
               {t('common.cancel')}
             </Button>
           </div>
@@ -299,13 +300,13 @@ function InProgressProjectCard({
             </option>
           ))}
         </select>
-        <div className="mt-4 flex gap-2">
-          <Button className="flex-1" onClick={handleReassign} disabled={!selectedWorker || busy}>
+        <div className="mt-4 flex flex-col gap-2 xs:flex-row">
+          <Button className="w-full flex-1" onClick={handleReassign} disabled={!selectedWorker || busy}>
             {busy ? t('common.assigning') : t('common.assign')}
           </Button>
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full flex-1"
             onClick={() => {
               setReassignOpen(false);
               setSelectedWorker('');
@@ -562,6 +563,12 @@ export function WorkerProfileModal({
               </p>
             </div>
           </div>
+
+          <WorkerGamificationPanel
+            gamification={profile.gamification}
+            workerName={profile.worker.name}
+            workerId={profile.worker.id}
+          />
 
           {profile.worker.telegramId && (
             <div className="rounded-xl border border-app-border bg-app-bg/50 px-4 py-3">

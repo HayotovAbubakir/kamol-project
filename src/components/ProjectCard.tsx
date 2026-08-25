@@ -17,7 +17,7 @@ import {
   formatAddress,
   formatDate,
   formatDateTime,
-  formatPhone,
+  formatProjectPhones,
   formatPrice,
   getDeadlineUrgency,
   isReturnedCard,
@@ -427,7 +427,7 @@ function ProjectMetaGrid({
       <MetaItem
         icon={<IconPhone />}
         label={t('admin.phone')}
-        value={project.phone ? formatPhone(String(project.phone)) : '—'}
+        value={project.phone ? formatProjectPhones(project.phone) : '—'}
         nowrap
       />
       <MetaItem

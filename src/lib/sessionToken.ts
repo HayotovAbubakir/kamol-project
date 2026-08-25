@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from 'crypto';
-import { getRuntimeEnv } from '@/lib/runtimeEnv';
+import { getRuntimeEnv, isServerlessRuntime } from '@/lib/runtimeEnv';
 import type { SessionUser } from '@/types';
 
-const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+/** Qurilmada bir marta login — refreshda qayta so'ralmasin (30 kun). */
+export const SESSION_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface TokenPayload {
   id: string;
@@ -15,13 +16,7 @@ interface TokenPayload {
 function getSessionSecret(): string {
   const secret = getRuntimeEnv('SESSION_SECRET');
   if (secret && secret.length >= 32) return secret;
-  if (
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL ||
-    process.env.WORKERS_CI ||
-    process.env.CF_PAGES ||
-    process.env.CF_WORKER
-  ) {
+  if (isServerlessRuntime()) {
     throw new Error('SESSION_SECRET majburiy (kamida 32 belgi). Cloudflare Variables & Secrets ga qo\'shing.');
   }
   // Dev-only fallback — never used in production.
@@ -61,7 +56,7 @@ export function signSession(user: SessionUser): string {
     username: user.username,
     name: user.name,
     role: user.role,
-    exp: Date.now() + TOKEN_TTL_MS,
+    exp: Date.now() + SESSION_TOKEN_TTL_MS,
   };
   const encoded = encodePayload(payload);
   return `${encoded}.${sign(encoded)}`;

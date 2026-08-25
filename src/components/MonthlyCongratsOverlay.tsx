@@ -25,15 +25,15 @@ export function MonthlyCongratsOverlay({ pending, onClose }: MonthlyCongratsOver
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-3 xs:p-4">
       <div className="pointer-events-none absolute inset-0">
         <FireworksField autoPlay />
       </div>
-      <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/20 bg-app-card/95 p-8 text-center shadow-2xl backdrop-blur-xl">
-        <p className="text-6xl" aria-hidden>
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-app-card/95 p-5 text-center shadow-2xl backdrop-blur-xl xs:rounded-3xl xs:p-8">
+        <p className="text-5xl xs:text-6xl" aria-hidden>
           {MEDAL[pending.rank]}
         </p>
-        <h2 className="mt-4 font-display text-2xl font-semibold text-app-text">
+        <h2 className="mt-4 font-display text-xl font-semibold text-app-text xs:text-2xl">
           {t(`leaderboard.congratsTitle${pending.rank}`)}
         </h2>
         <p className="mt-2 text-sm text-app-muted">

@@ -62,7 +62,7 @@ export function BookCoverDrag({
         }
       }}
       className={cn(
-        'book-cover select-none overflow-hidden rounded-[28px] border border-black/10 bg-[#efe6d4] text-left text-editorial-text shadow-[18px_18px_50px_rgba(0,0,0,0.22)] dark:border-metallic-green/20 dark:bg-[#142019] dark:text-[#efece4]',
+        'book-cover select-none overflow-hidden rounded-[18px] text-left xs:rounded-[22px] sm:rounded-[28px]',
         reduced && 'motion-reduce',
         opened && 'is-open',
       )}
@@ -70,7 +70,7 @@ export function BookCoverDrag({
       <div className="pointer-events-none relative h-full w-full">{children}</div>
       <span className="book-drag-handle pointer-events-none" aria-hidden>
         <span className="book-drag-handle-icon" />
-        <span className="book-drag-handle-text">{dragHint}</span>
+        <span className="min-w-0 truncate">{dragHint}</span>
       </span>
     </div>
   );

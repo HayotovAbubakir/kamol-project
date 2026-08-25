@@ -9,8 +9,8 @@ export default function WorkerSettingsPage() {
 
   return (
     <>
-      <PageHeader title={t('settings.title')} description={t('settings.appearanceHint')} />
-      <div className="max-w-3xl">
+      <PageHeader title={t('settings.title')} />
+      <div className="max-w-3xl pb-6">
         <AppearancePanel />
       </div>
     </>

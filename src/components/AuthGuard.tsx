@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { apiFetch, clearSession, saveSession } from '@/lib/auth';
 import type { SessionUser } from '@/types';
 
 interface AuthGuardProps {
@@ -16,17 +16,30 @@ export function AuthGuard({ role, children }: AuthGuardProps) {
   const [session, setSession] = useState<SessionUser | null>(null);
 
   useEffect(() => {
-    const current = getSession();
-    setSession(current);
-    setChecked(true);
+    let cancelled = false;
 
-    if (!current) {
-      router.replace('/');
-      return;
-    }
-    if (current.role !== role) {
-      router.replace(current.role === 'admin' ? '/admin' : '/worker');
-    }
+    // httpOnly cookie orqali tekshirish — refreshda ham sessiya saqlanadi.
+    apiFetch<{ user: SessionUser }>('/api/auth')
+      .then((res) => {
+        if (cancelled) return;
+        saveSession(res.user);
+        setSession(res.user);
+        setChecked(true);
+        if (res.user.role !== role) {
+          router.replace(res.user.role === 'admin' ? '/admin' : '/worker');
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        clearSession();
+        setSession(null);
+        setChecked(true);
+        router.replace('/');
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [role, router]);
 
   if (!checked || !session || session.role !== role) {

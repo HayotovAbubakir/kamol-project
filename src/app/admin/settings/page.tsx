@@ -11,7 +11,7 @@ export default function AdminSettingsPage() {
 
   return (
     <>
-      <PageHeader title={t('settings.title')} description={t('settings.description')} />
+      <PageHeader title={t('settings.title')} />
       <div className="mx-auto max-w-3xl space-y-6 pb-6">
         <AdminAccountPanel />
         <AdminManagementPanel />

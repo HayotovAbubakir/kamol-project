@@ -200,8 +200,8 @@ export function DashboardAnalytics({
               ))}
             </div>
             <div className="flex justify-end border-t border-app-border pt-4">
-              <Link href="/admin/projects" onClick={() => setProjectsOpen(false)}>
-                <Button>{t('nav.projects')}</Button>
+              <Link href="/admin/projects" className="w-full sm:w-auto" onClick={() => setProjectsOpen(false)}>
+                <Button className="w-full">{t('nav.projects')}</Button>
               </Link>
             </div>
           </div>
@@ -222,7 +222,7 @@ export function DashboardAnalytics({
           />
         ) : (
           <div className="mx-auto w-full max-w-3xl space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-app-border bg-app-card px-4 py-3.5 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+            <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-app-border bg-app-card px-3 py-3 shadow-sm dark:ring-1 dark:ring-metallic-green/15 sm:px-4 sm:py-3.5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
                   {t('dashboard.totalSum')}
@@ -246,12 +246,12 @@ export function DashboardAnalytics({
                 return (
                   <li
                     key={project.id}
-                    className="rounded-2xl border border-app-border bg-app-card px-4 py-3.5 shadow-sm dark:ring-1 dark:ring-metallic-green/10"
+                    className="rounded-2xl border border-app-border bg-app-card px-3 py-3 shadow-sm dark:ring-1 dark:ring-metallic-green/10 sm:px-4 sm:py-3.5"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold tabular-nums text-app-muted">#{index + 1}</p>
-                        <h3 className="mt-0.5 truncate font-display text-base font-semibold text-app-text">
+                        <h3 className="mt-0.5 break-words font-display text-base font-semibold text-app-text [overflow-wrap:anywhere]">
                           {formatAddress(project) || project.clientName || project.title}
                         </h3>
                         <p className="mt-0.5 truncate text-sm text-app-muted">
@@ -297,8 +297,8 @@ export function DashboardAnalytics({
             </ul>
 
             <div className="flex justify-end border-t border-app-border pt-4">
-              <Link href="/admin/projects" onClick={() => setSumOpen(false)}>
-                <Button>{t('nav.projects')}</Button>
+              <Link href="/admin/projects" className="w-full sm:w-auto" onClick={() => setSumOpen(false)}>
+                <Button className="w-full">{t('nav.projects')}</Button>
               </Link>
             </div>
           </div>

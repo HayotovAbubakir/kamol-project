@@ -149,3 +149,21 @@ export function selectValueFromSelection(selection: CompletedDateSelection): str
   if (selection.kind === 'custom') return 'custom';
   return selection.preset;
 }
+
+export function isOrderDateInRange(orderDate: string, start: Date, end: Date): boolean {
+  const order = new Date(orderDate);
+  if (Number.isNaN(order.getTime())) return false;
+  return order.getTime() >= start.getTime() && order.getTime() <= end.getTime();
+}
+
+export function filterProjectsByOrderDate<T extends { orderDate: string }>(
+  projects: T[],
+  selection: CompletedDateSelection,
+  now = new Date(),
+): T[] {
+  if (selection.kind === 'custom' && (!selection.start.trim() || !selection.end.trim())) {
+    return [];
+  }
+  const { start, end } = getCompletedDateRange(selection, now);
+  return projects.filter((project) => isOrderDateInRange(project.orderDate, start, end));
+}

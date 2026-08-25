@@ -147,7 +147,7 @@ export function NotificationsPanel({
       {(!full || unreadCount > 0) && (
         <div
           className={cn(
-            'flex shrink-0 items-center justify-between',
+            'flex shrink-0 items-center justify-between gap-2',
             full ? 'border-b border-app-border pb-3' : embedded ? (compact ? 'mb-1.5' : 'mb-2') : 'mb-3',
           )}
         >

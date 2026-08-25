@@ -8,6 +8,8 @@ export interface User {
   role: UserRole;
   telegramId?: string;
   phone?: string;
+  /** Adminni kim yaratgan (faqat adminlar uchun) */
+  createdBy?: string;
 }
 
 export type ProjectStatus = 'pending' | 'in_progress' | 'pending_review' | 'completed' | 'rejected' | 'returned';
@@ -165,11 +167,94 @@ export interface RatingHistoryItem {
   daysToComplete?: number;
 }
 
+export interface MonthlyWinRecord {
+  month: string;
+  rank: 1 | 2 | 3;
+  points: number;
+  live?: boolean;
+}
+
+export interface LocalizedText {
+  uz: string;
+  ru: string;
+  en: string;
+}
+
+export interface UnlockedPerk {
+  id: string;
+  points: number;
+  icon: string;
+  labelKey: string;
+  descKey: string;
+  label?: LocalizedText;
+  description?: LocalizedText;
+  feature?: string;
+  unlocked: boolean;
+}
+
+export interface WorkerTitleInfo {
+  id: string;
+  icon: string;
+  labelKey: string;
+  label?: LocalizedText;
+  kind: 'rank' | 'special';
+}
+
+export interface WorkerGamificationProfile {
+  lifetimePoints: number;
+  monthlyWins: MonthlyWinRecord[];
+  firstPlaceCount: number;
+  currentMonthRank: number | null;
+  currentMonthPoints: number;
+  lifetimeRank: number | null;
+  title: WorkerTitleInfo;
+  specialTitles: WorkerTitleInfo[];
+  nextTitle: { labelKey: string; icon: string; minPoints: number } | null;
+  perks: UnlockedPerk[];
+  nextPerk: UnlockedPerk | null;
+  activeFeatures: string[];
+  completionStreak: number;
+  isLegend: boolean;
+  isCurrentMonthChampion: boolean;
+  isPointsKing: boolean;
+  avatarFrame: 'default' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'legend' | 'champion';
+  avatarBadge: string;
+  designPassFrameClass?: string | null;
+  designPassFrameColor?: string | null;
+  designPass?: import('@/lib/designPass').DesignPassProfile;
+}
+
+export interface HallOfFameEntry {
+  workerId: string;
+  workerName: string;
+  firstPlaceWins: number;
+  winMonths: string[];
+  lifetimePoints: number;
+  lifetimeRank: number | null;
+  isLegend: boolean;
+  isPointsKing: boolean;
+  title: WorkerTitleInfo;
+  specialTitles: WorkerTitleInfo[];
+  avatarFrame: WorkerGamificationProfile['avatarFrame'];
+  avatarBadge: string;
+}
+
 export interface MonthlyLeaderboardEntry {
   workerId: string;
   workerName: string;
   monthlyPoints: number;
   rank: number;
+  firstPlaceWins?: number;
+  lifetimePoints?: number;
+  lifetimeRank?: number | null;
+  isLegend?: boolean;
+  isPointsKing?: boolean;
+  isCurrentMonthChampion?: boolean;
+  winMonths?: string[];
+  title?: WorkerTitleInfo;
+  specialTitles?: WorkerTitleInfo[];
+  avatarFrame?: WorkerGamificationProfile['avatarFrame'];
+  avatarBadge?: string;
 }
 
 export interface PendingCongrats {
@@ -223,6 +308,7 @@ export interface WorkerProfile {
   worker: WorkerSummary;
   rating: WorkerRating;
   weeklyRank: number | null;
+  gamification: WorkerGamificationProfile;
   inProgress: WorkerProfileProject[];
   completed: WorkerProfileProject[];
   returned: WorkerProfileProject[];

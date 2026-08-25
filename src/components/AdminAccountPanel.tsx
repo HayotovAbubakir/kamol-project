@@ -78,7 +78,7 @@ export function AdminAccountPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-app-border bg-app-card p-6 shadow-sm dark:ring-1 dark:ring-metallic-green/15">
+    <section className="rounded-2xl border border-app-border bg-app-card p-4 shadow-sm dark:ring-1 dark:ring-metallic-green/15 sm:p-6">
       <h2 className="font-display text-lg font-semibold text-app-text">{t('settings.accountTitle')}</h2>
       <p className="mb-6 mt-1 text-sm text-app-muted">{t('settings.accountHint')}</p>
 
@@ -118,7 +118,7 @@ export function AdminAccountPanel() {
           />
           <p className="text-xs text-app-muted">{t('settings.passwordChangeHint')}</p>
           <div className="flex justify-end pt-1">
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" className="w-full sm:w-auto" disabled={busy}>
               {busy ? t('common.saving') : t('common.save')}
             </Button>
           </div>

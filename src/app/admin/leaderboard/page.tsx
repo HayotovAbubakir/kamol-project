@@ -7,20 +7,21 @@ import { SkeletonPage } from '@/components/Skeleton';
 import { useAdminData } from '@/hooks/useAdminData';
 import { apiFetch } from '@/lib/auth';
 import { monthKey } from '@/lib/monthKey';
-import type { MonthlyLeaderboardEntry } from '@/types';
+import type { HallOfFameEntry, MonthlyLeaderboardEntry } from '@/types';
 
 export default function AdminLeaderboardPage() {
   const { workers, loadData } = useAdminData();
   const [month, setMonth] = useState(monthKey());
   const [months, setMonths] = useState<string[]>([monthKey()]);
   const [entries, setEntries] = useState<MonthlyLeaderboardEntry[]>([]);
+  const [hallOfFame, setHallOfFame] = useState<HallOfFameEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [profileId, setProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    apiFetch<{ month: string; months: string[]; entries: MonthlyLeaderboardEntry[] }>(
+    apiFetch<{ month: string; months: string[]; entries: MonthlyLeaderboardEntry[]; hallOfFame: HallOfFameEntry[] }>(
       `/api/leaderboard?month=${month}`,
     )
       .then((res) => {
@@ -28,6 +29,7 @@ export default function AdminLeaderboardPage() {
         setMonth(res.month);
         setMonths(res.months);
         setEntries(res.entries);
+        setHallOfFame(res.hallOfFame ?? []);
       })
       .catch(() => {
         if (!cancelled) setEntries([]);
@@ -48,6 +50,7 @@ export default function AdminLeaderboardPage() {
         month={month}
         months={months}
         entries={entries}
+        hallOfFame={hallOfFame}
         loading={loading}
         onMonthChange={setMonth}
         onSelectWorker={setProfileId}

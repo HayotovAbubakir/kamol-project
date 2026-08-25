@@ -33,14 +33,14 @@ export function NotificationDateFilter({
   };
 
   return (
-    <label className={cn('inline-flex flex-col gap-1.5', className)}>
+    <label className={cn('inline-flex w-full flex-col gap-1.5 sm:w-auto', className)}>
       <span className="text-xs font-semibold uppercase tracking-wider text-app-muted">
         {t('notifications.dateFilter')}
       </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as NotificationDatePreset)}
-        className={cn(uiSelectClass, 'min-w-[11.5rem]')}
+        className={cn(uiSelectClass, 'w-full min-w-0 sm:min-w-[11.5rem]')}
       >
         {PRESETS.map((preset) => (
           <option key={preset} value={preset}>

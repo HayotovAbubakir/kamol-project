@@ -2,20 +2,27 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { useAppSettings } from '@/context/AppSettingsContext';
+import { isCursorTrailRgb, resolveTrailPalette } from '@/lib/cursorTrail';
+import { drawSnakeTrail, type SnakeTrailPoint } from '@/lib/snakeTrail';
 import { usePrefersReducedMotion } from '@/hooks/useMotion';
 
-const FRAME_MS = 33;
+const FRAME_MS = 16;
+const SNAKE_FRAME_MS = 16;
 const GRID_STEP = 48;
 const GLOW_SIZE = 240;
 const MIN_SEGMENT_SQ = 4;
-const MAX_SEGMENT_SQ = 40000;
+/** Skip trail only for true teleports (window blur / cursor jump), not fast flicks. */
+const MAX_TELEPORT_SQ = 810_000; // ~900px
+/** Sample spacing so fast moves still leave a continuous trail. */
+const TRAIL_SAMPLE_PX = 10;
 // Total lifetime of a trail segment. Alpha decays smoothly from full to zero
 // over this duration, so the fade is guaranteed to reach true zero (no 8-bit
 // alpha rounding artifacts like the old destination-out approach had).
 const TRAIL_LIFETIME_MS = 1400;
 // Hard cap on live segments so the per-frame draw cost stays bounded even
 // under pathological input (e.g. very fast dragging).
-const MAX_SEGMENTS = 240;
+const MAX_SEGMENTS = 480;
 
 interface TrailSegment {
   x0: number;
@@ -27,17 +34,34 @@ interface TrailSegment {
   bornAt: number;
 }
 
-export function BlueprintGrid() {
+export function BlueprintGrid({ mode = 'full' }: { mode?: 'full' | 'grid' | 'trail' }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const segmentsRef = useRef<TrailSegment[]>([]);
+  const snakePointsRef = useRef<SnakeTrailPoint[]>([]);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
   const reduced = usePrefersReducedMotion();
   const pathname = usePathname();
+  const { cursorTrailEnabled, cursorTrailColor, cursorTrailStyle, theme } = useAppSettings();
+  const trailSettingsRef = useRef({
+    enabled: cursorTrailEnabled,
+    color: cursorTrailColor,
+    style: cursorTrailStyle,
+    theme,
+  });
+  trailSettingsRef.current = {
+    enabled: cursorTrailEnabled,
+    color: cursorTrailColor,
+    style: cursorTrailStyle,
+    theme,
+  };
 
   // Drop any lingering trail segments whenever the user navigates to a new
   // route so trails from the previous page can never leak across pages.
   useEffect(() => {
     segmentsRef.current = [];
-  }, [pathname]);
+    snakePointsRef.current = [];
+  }, [pathname, cursorTrailEnabled]);
 
   useEffect(() => {
     if (reduced) return;
@@ -66,12 +90,27 @@ export function BlueprintGrid() {
       my: view.h / 2,
       lastX: view.w / 2,
       lastY: view.h / 2,
+      angle: 0,
       hasPrev: false,
     };
 
     let raf = 0;
     let hidden = document.hidden;
     let lastPaint = 0;
+
+    function drawPointerGlow(now: number) {
+      const color = trailSettingsRef.current.color;
+      const palette = resolveTrailPalette(color, view.dark, now, 0);
+      const [r, g, b] = palette.glow;
+      const size = GLOW_SIZE;
+      const grad = ctx!.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, size / 2);
+      grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.32)`);
+      grad.addColorStop(0.28, `rgba(${r}, ${g}, ${b}, 0.14)`);
+      grad.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.04)`);
+      grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+      ctx!.fillStyle = grad;
+      ctx!.fillRect(pointer.x - size / 2, pointer.y - size / 2, size, size);
+    }
 
     function drawGrid() {
       const { w, h, dpr, dark } = view;
@@ -98,7 +137,8 @@ export function BlueprintGrid() {
       glowBuf.width = size;
       glowBuf.height = size;
       const cx = size / 2;
-      const [r, g, b] = view.dark ? [148, 232, 194] : [96, 138, 112];
+      const palette = resolveTrailPalette(trailSettingsRef.current.color, view.dark);
+      const [r, g, b] = palette.glow;
       const grad = glowCtx!.createRadialGradient(cx, cx, 0, cx, cx, cx);
       grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.32)`);
       grad.addColorStop(0.28, `rgba(${r}, ${g}, ${b}, 0.14)`);
@@ -135,6 +175,10 @@ export function BlueprintGrid() {
     }
 
     function onMove(e: PointerEvent) {
+      const currentMode = modeRef.current;
+      if (currentMode === 'grid') return;
+      if (!trailSettingsRef.current.enabled) return;
+
       const nx = e.clientX;
       const ny = e.clientY;
       pointer.x = nx;
@@ -153,7 +197,8 @@ export function BlueprintGrid() {
       const dy = ny - pointer.lastY;
       const d2 = dx * dx + dy * dy;
       if (d2 < MIN_SEGMENT_SQ) return;
-      if (d2 > MAX_SEGMENT_SQ) {
+      // Genuine teleport (alt-tab / leave window) — reset without a streak.
+      if (d2 > MAX_TELEPORT_SQ) {
         pointer.mx = nx;
         pointer.my = ny;
         pointer.lastX = nx;
@@ -161,26 +206,66 @@ export function BlueprintGrid() {
         return;
       }
 
-      const newMx = (pointer.lastX + nx) / 2;
-      const newMy = (pointer.lastY + ny) / 2;
+      const style = trailSettingsRef.current.style;
+      const wantLine = style === 'line' || style === 'both';
+      const wantSnake = style === 'snake' || style === 'both';
+      const dist = Math.sqrt(d2);
+      // Snake needs denser samples; line stays smooth at ~10px.
+      const samplePx = wantSnake ? 4 : TRAIL_SAMPLE_PX;
+      const steps = Math.max(1, Math.ceil(dist / samplePx));
+      const bornAt = performance.now();
 
-      const segs = segmentsRef.current;
-      segs.push({
-        x0: pointer.mx,
-        y0: pointer.my,
-        cpx: pointer.lastX,
-        cpy: pointer.lastY,
-        x1: newMx,
-        y1: newMy,
-        bornAt: performance.now(),
-      });
-      // Keep the segment buffer bounded to guarantee a stable per-frame cost.
-      if (segs.length > MAX_SEGMENTS) {
-        segs.splice(0, segs.length - MAX_SEGMENTS);
+      let prevMx = pointer.mx;
+      let prevMy = pointer.my;
+      let prevX = pointer.lastX;
+      let prevY = pointer.lastY;
+
+      for (let step = 1; step <= steps; step += 1) {
+        const t = step / steps;
+        const curX = pointer.lastX + dx * t;
+        const curY = pointer.lastY + dy * t;
+        const curMx = (prevX + curX) / 2;
+        const curMy = (prevY + curY) / 2;
+        pointer.angle = Math.atan2(curY - prevY, curX - prevX);
+
+        if (wantLine) {
+          const segs = segmentsRef.current;
+          segs.push({
+            x0: prevMx,
+            y0: prevMy,
+            cpx: prevX,
+            cpy: prevY,
+            x1: curMx,
+            y1: curMy,
+            bornAt,
+          });
+        }
+
+        if (wantSnake) {
+          snakePointsRef.current.push({ x: curMx, y: curMy, bornAt });
+        }
+
+        prevMx = curMx;
+        prevMy = curMy;
+        prevX = curX;
+        prevY = curY;
       }
 
-      pointer.mx = newMx;
-      pointer.my = newMy;
+      if (wantLine) {
+        const segs = segmentsRef.current;
+        if (segs.length > MAX_SEGMENTS) {
+          segs.splice(0, segs.length - MAX_SEGMENTS);
+        }
+      }
+      if (wantSnake) {
+        const snakePoints = snakePointsRef.current;
+        if (snakePoints.length > MAX_SEGMENTS) {
+          snakePoints.splice(0, snakePoints.length - MAX_SEGMENTS);
+        }
+      }
+
+      pointer.mx = prevMx;
+      pointer.my = prevMy;
       pointer.lastX = nx;
       pointer.lastY = ny;
     }
@@ -190,57 +275,80 @@ export function BlueprintGrid() {
       const cnv = canvas!;
       c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, cnv.width, cnv.height);
-      c.drawImage(gridBuf, 0, 0);
+      const currentMode = modeRef.current;
+      const showGrid = currentMode === 'full' || currentMode === 'grid';
+      if (showGrid) {
+        c.drawImage(gridBuf, 0, 0);
+      }
       c.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
       c.lineCap = 'round';
       c.lineJoin = 'round';
 
-      const wideColor = view.dark ? '120, 210, 168' : '70, 100, 82';
-      const brightColor = view.dark ? '210, 255, 232' : '255, 255, 255';
-      const wideBaseA = view.dark ? 0.32 : 0.26;
-      const brightBaseA = view.dark ? 0.9 : 0.85;
+      const trailEnabled =
+        trailSettingsRef.current.enabled && (currentMode === 'full' || currentMode === 'trail');
+      const trailColor = trailSettingsRef.current.color;
+      const getPalette = (ageMs: number) => resolveTrailPalette(trailColor, view.dark, now, ageMs);
 
-      // Redraw each live segment with fresh alpha derived from its age. This
-      // is what actually solves the "stuck at low alpha" bug: we always
-      // compute the target alpha in floating point, so alpha genuinely
-      // reaches 0 when age reaches TRAIL_LIFETIME_MS.
-      const segs = segmentsRef.current;
-      let write = 0;
-      for (let i = 0; i < segs.length; i += 1) {
-        const s = segs[i];
-        const age = now - s.bornAt;
-        if (age >= TRAIL_LIFETIME_MS) continue;
-        // Ease-out fade so trails linger a bit at their peak then decay
-        // gracefully instead of dropping linearly.
-        const t = 1 - age / TRAIL_LIFETIME_MS;
-        const a = t * t;
+      if (trailEnabled) {
+        const style = trailSettingsRef.current.style;
 
-        c.strokeStyle = `rgba(${wideColor}, ${wideBaseA * a})`;
-        c.lineWidth = 5.5;
-        c.beginPath();
-        c.moveTo(s.x0, s.y0);
-        c.quadraticCurveTo(s.cpx, s.cpy, s.x1, s.y1);
-        c.stroke();
+        if (style === 'line' || style === 'both') {
+          const segs = segmentsRef.current;
+          let write = 0;
+          for (let i = 0; i < segs.length; i += 1) {
+            const s = segs[i];
+            const age = now - s.bornAt;
+            if (age >= TRAIL_LIFETIME_MS) continue;
+            const t = 1 - age / TRAIL_LIFETIME_MS;
+            const a = t * t;
+            const { wide: wideColor, bright: brightColor, wideBaseA, brightBaseA } = getPalette(age);
 
-        c.strokeStyle = `rgba(${brightColor}, ${brightBaseA * a})`;
-        c.lineWidth = 1.5;
-        c.beginPath();
-        c.moveTo(s.x0, s.y0);
-        c.quadraticCurveTo(s.cpx, s.cpy, s.x1, s.y1);
-        c.stroke();
+            c.strokeStyle = `rgba(${wideColor}, ${wideBaseA * a})`;
+            c.lineWidth = 5.5;
+            c.beginPath();
+            c.moveTo(s.x0, s.y0);
+            c.quadraticCurveTo(s.cpx, s.cpy, s.x1, s.y1);
+            c.stroke();
 
-        segs[write++] = s;
+            c.strokeStyle = `rgba(${brightColor}, ${brightBaseA * a})`;
+            c.lineWidth = 1.5;
+            c.beginPath();
+            c.moveTo(s.x0, s.y0);
+            c.quadraticCurveTo(s.cpx, s.cpy, s.x1, s.y1);
+            c.stroke();
+
+            segs[write++] = s;
+          }
+          segs.length = write;
+        }
+
+        if (style === 'snake' || style === 'both') {
+          drawSnakeTrail(
+            c,
+            now,
+            snakePointsRef.current,
+            pointer.x,
+            pointer.y,
+            pointer.angle,
+            getPalette,
+            view.dark,
+            TRAIL_LIFETIME_MS,
+          );
+        } else if (isCursorTrailRgb(trailColor)) {
+          drawPointerGlow(now);
+        } else {
+          const size = GLOW_SIZE;
+          c.drawImage(glowBuf, pointer.x - size / 2, pointer.y - size / 2, size, size);
+        }
       }
-      segs.length = write;
-
-      const size = GLOW_SIZE;
-      c.drawImage(glowBuf, pointer.x - size / 2, pointer.y - size / 2, size, size);
     }
 
     function loop(now: number) {
       if (hidden) return;
       raf = requestAnimationFrame(loop);
-      if (now - lastPaint < FRAME_MS) return;
+      const style = trailSettingsRef.current.style;
+      const frameBudget = style === 'snake' || style === 'both' ? SNAKE_FRAME_MS : FRAME_MS;
+      if (now - lastPaint < frameBudget) return;
       lastPaint = now;
       draw(now);
     }
@@ -255,6 +363,7 @@ export function BlueprintGrid() {
       // On resume, drop stale segments so a paused tab doesn't spray a fully
       // decayed batch back onto the screen when it comes back.
       segmentsRef.current = [];
+      snakePointsRef.current = [];
       lastPaint = 0;
       pointer.hasPrev = false;
       raf = requestAnimationFrame(loop);
@@ -278,9 +387,16 @@ export function BlueprintGrid() {
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [reduced]);
+  }, [reduced, cursorTrailEnabled, cursorTrailColor, cursorTrailStyle, theme, mode]);
 
   if (reduced) return null;
+  if (mode === 'trail' && !cursorTrailEnabled) return null;
 
-  return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none fixed inset-0 z-0"
+      aria-hidden
+    />
+  );
 }

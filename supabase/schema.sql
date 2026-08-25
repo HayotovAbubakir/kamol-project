@@ -20,6 +20,9 @@ create table if not exists public.users (
 
 create index if not exists idx_users_role on public.users(role);
 
+alter table public.users add column if not exists created_by uuid references public.users(id) on delete set null;
+create index if not exists idx_users_created_by on public.users(created_by);
+
 -- ---------------------------------------------------------------------------
 -- Projects
 -- ---------------------------------------------------------------------------
@@ -218,10 +221,20 @@ create table if not exists public.login_locks (
 );
 
 -- ---------------------------------------------------------------------------
+-- Device sessions (hashed IP only — never exposed to the client)
+-- ---------------------------------------------------------------------------
+create table if not exists public.device_sessions (
+  user_id uuid primary key references public.users(id) on delete cascade,
+  ip_hash text not null,
+  last_seen_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security (service role only — app uses service_role key)
 -- ---------------------------------------------------------------------------
 alter table public.users enable row level security;
 alter table public.login_locks enable row level security;
+alter table public.device_sessions enable row level security;
 alter table public.projects enable row level security;
 alter table public.notifications enable row level security;
 alter table public.app_settings enable row level security;
@@ -336,6 +349,14 @@ do $$ begin
     where schemaname = 'public' and tablename = 'login_locks' and policyname = 'service_role_login_locks'
   ) then
     create policy "service_role_login_locks" on public.login_locks
+      for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'device_sessions' and policyname = 'service_role_device_sessions'
+  ) then
+    create policy "service_role_device_sessions" on public.device_sessions
       for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
   end if;
 end $$;

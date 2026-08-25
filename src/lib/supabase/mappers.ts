@@ -17,7 +17,7 @@ import type {
   User,
   UserRole,
 } from '@/types';
-import { normalizePhone } from '@/lib/utils';
+import { joinProjectPhones, normalizePhone } from '@/lib/utils';
 
 export interface DbUser {
   id: string;
@@ -27,6 +27,7 @@ export interface DbUser {
   role: UserRole;
   telegram_id: string | null;
   phone?: string | null;
+  created_by?: string | null;
 }
 
 export interface DbProject {
@@ -94,6 +95,7 @@ export function userFromDb(row: DbUser): User {
     role: row.role,
     telegramId: row.telegram_id ?? undefined,
     phone: normalizePhone(row.phone ?? undefined),
+    createdBy: row.created_by ?? undefined,
   };
 }
 
@@ -106,6 +108,7 @@ export function userToDb(user: User): DbUser {
     role: user.role,
     telegram_id: user.telegramId ?? null,
     phone: user.phone ?? null,
+    created_by: user.createdBy ?? null,
   };
 }
 
@@ -115,7 +118,7 @@ export function projectFromDb(row: DbProject): Project {
     title: row.title,
     clientName: row.client_name,
     address: row.address,
-    phone: normalizePhone(row.phone ?? undefined),
+    phone: joinProjectPhones([row.phone]) ?? normalizePhone(row.phone ?? undefined),
     price: row.price ?? undefined,
     advancePaid: row.advance_paid,
     advanceAmount: row.advance_amount ?? undefined,
@@ -136,7 +139,7 @@ export function projectToDb(project: Project): DbProject {
     title: project.title,
     client_name: project.clientName,
     address: project.address,
-    phone: project.phone ?? null,
+    phone: joinProjectPhones([project.phone]) ?? project.phone ?? null,
     price: project.price ?? null,
     advance_paid: project.advancePaid,
     advance_amount: project.advanceAmount ?? null,

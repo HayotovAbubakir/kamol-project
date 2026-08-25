@@ -76,7 +76,11 @@ export default function WorkerReturnedPage() {
 
   return (
     <>
-      <PageHeader title={t('worker.returnedTitle')} description={t('worker.returnedDesc')} />
+      <PageHeader title={t('worker.returnedTitle')} />
+
+      {returnedProjects.length > 0 && (
+        <p className="ui-hint">{t('project.returnedAlertHint')}</p>
+      )}
 
       {returnedProjects.length > 0 && (
         <div className="mb-4">
@@ -150,11 +154,11 @@ export default function WorkerReturnedPage() {
           placeholder={t('worker.replyPlaceholder')}
           autoFocus
         />
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={closeReplyModal} disabled={busy}>
+        <div className="mt-4 flex flex-col-reverse gap-2 xs:flex-row xs:flex-wrap xs:justify-end">
+          <Button variant="outline" className="w-full xs:w-auto" onClick={closeReplyModal} disabled={busy}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleSubmitReply} disabled={busy || !notesDraft.trim()}>
+          <Button className="w-full xs:w-auto" onClick={handleSubmitReply} disabled={busy || !notesDraft.trim()}>
             {busy ? t('common.submitting') : t('worker.replySubmit')}
           </Button>
         </div>

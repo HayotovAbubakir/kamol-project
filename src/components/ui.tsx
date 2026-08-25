@@ -65,9 +65,9 @@ export function Modal({ open, title, description, onClose, children, size = 'md'
         aria-labelledby="modal-title"
         className="fixed inset-0 z-[100] flex flex-col bg-app-bg"
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-app-border px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-app-border px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 sm:py-5">
           <div className="min-w-0 flex-1">
-            <h3 id="modal-title" className="font-display text-xl font-bold text-app-text sm:text-2xl">
+            <h3 id="modal-title" className="break-words font-display text-lg font-bold text-app-text sm:text-2xl">
               {title}
             </h3>
             {description && (
@@ -78,7 +78,7 @@ export function Modal({ open, title, description, onClose, children, size = 'md'
             ✕
           </button>
         </div>
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-6">
           {children}
         </div>
       </div>,
@@ -260,7 +260,7 @@ export function ConfirmModal({
             className={cn(
               'mt-4 space-y-2 text-sm leading-relaxed',
               variant === 'danger'
-                ? 'rounded-xl border border-deadline-red/25 bg-deadline-red/8 px-4 py-4 text-app-text'
+                ? 'rounded-xl border border-deadline-red/25 bg-deadline-red/10 px-4 py-4 text-app-text'
                 : 'text-app-muted',
             )}
           >
@@ -272,11 +272,11 @@ export function ConfirmModal({
           </div>
         )}
 
-        <div className="mt-6 flex gap-3">
-          <Button variant={variant} className="flex-1" onClick={handleConfirm} disabled={confirming}>
+        <div className="mt-6 flex flex-col-reverse gap-2 xs:flex-row xs:gap-3">
+          <Button variant={variant} className="w-full flex-1" onClick={handleConfirm} disabled={confirming}>
             {confirming ? (confirmingLabel ?? t('common.deleting')) : (confirmLabel ?? t('common.delete'))}
           </Button>
-          <Button variant="outline" className="flex-1" onClick={onCancel} disabled={confirming}>
+          <Button variant="outline" className="w-full flex-1" onClick={onCancel} disabled={confirming}>
             {cancelLabel ?? t('common.cancel')}
           </Button>
         </div>

@@ -14,11 +14,23 @@ if (!existsSync('wrangler.toml')) {
 }
 
 console.log('>>> Cloudflare Workers uchun OpenNext output yaratilmoqda...\n');
-execSync('npx opennextjs-cloudflare build --skipNextBuild', { stdio: 'inherit' });
+try {
+  execSync('npx opennextjs-cloudflare build --skipNextBuild', { stdio: 'inherit' });
+} catch (err) {
+  // Windowsda .open-next band bo'lsa EPERM chiqishi mumkin — lokal next start uchun Next build yetarli.
+  console.warn('\n[!] OpenNext bundle yaratilmadi (lokal Windows). Cloudflare deploy oldidan qayta build qiling.\n');
+  if (process.env.CI || process.env.CLOUDFLARE_WORKERS || process.env.CF_WORKER) {
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 if (!existsSync('.open-next/worker.js')) {
   console.error('\n[X] .open-next/worker.js yaratilmadi — Cloudflare deploy ishlamaydi.\n');
-  process.exit(1);
+  if (process.env.CI || process.env.CLOUDFLARE_WORKERS || process.env.CF_WORKER) {
+    process.exit(1);
+  }
+  process.exit(0);
 }
 
 console.log('\n[OK] .open-next/worker.js tayyor.\n');

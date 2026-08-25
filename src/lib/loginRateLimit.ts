@@ -26,6 +26,11 @@ export function getClientIp(request: Request): string {
   return 'unknown';
 }
 
+/** Local dev often has no proxy IP — shared ip:unknown would block everyone after test runs. */
+export function shouldRateLimitByIp(ip: string): boolean {
+  return ip !== 'unknown';
+}
+
 async function readFileStore(): Promise<Record<string, Entry>> {
   try {
     const raw = await fs.readFile(FILE_PATH, 'utf-8');

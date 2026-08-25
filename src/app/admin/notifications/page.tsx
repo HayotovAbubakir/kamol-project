@@ -59,6 +59,7 @@ export default function AdminNotificationsPage() {
     <div className="mx-auto w-full max-w-4xl space-y-4 pb-6">
       <PageHeader
         title={t('notifications.title')}
+        description={t('dashboard.notificationsDesc')}
         actions={
           <NotificationDateFilter value={datePreset} onChange={setDatePreset} />
         }

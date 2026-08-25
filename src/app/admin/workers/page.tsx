@@ -4,14 +4,15 @@ import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { StarRating } from '@/components/StarRating';
-import { Button, Input, Modal, ConfirmModal } from '@/components/ui';
+import { Button, Input, Modal, ConfirmModal, uiFieldLabelClass, uiInputGroupClass } from '@/components/ui';
 import { SkeletonTable } from '@/components/Skeleton';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useAdminData } from '@/hooks/useAdminData';
 import { WorkerProfileModal } from '@/components/WorkerProfileModal';
 import { apiFetch } from '@/lib/auth';
-import { isInProgressStatus, extractUzbekMobileDigits, formatPhoneInput, formatWeeklyRank } from '@/lib/utils';
+import { cn, isInProgressStatus, extractUzbekMobileDigits, formatPhoneInput, formatWeeklyRank } from '@/lib/utils';
+import { MIN_PASSWORD_LENGTH } from '@/lib/passwordPolicy';
 
 const EMPTY_WORKER = {
   firstName: '',
@@ -20,6 +21,11 @@ const EMPTY_WORKER = {
   password: '',
   phone: '',
 };
+
+function formatPhoneField(value: string): string {
+  const digits = extractUzbekMobileDigits(value) ?? value.replace(/\D/g, '').slice(0, 9);
+  return formatPhoneInput(digits);
+}
 
 function splitName(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -103,16 +109,29 @@ export default function AdminWorkersPage() {
   async function handleCreateWorker(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+    const firstName = newWorker.firstName.trim();
+    const lastName = newWorker.lastName.trim();
+    const username = newWorker.username.trim();
+    const password = newWorker.password;
+    const phone = extractUzbekMobileDigits(newWorker.phone);
+    if (!firstName || !username || !password.trim() || !phone) {
+      const msg = t('admin.workerRequiredFields');
+      setError(msg);
+      showToast('error', msg);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       await apiFetch('/api/users', {
         method: 'POST',
         body: JSON.stringify({
-          name: `${newWorker.firstName} ${newWorker.lastName}`.trim(),
-          username: newWorker.username,
-          password: newWorker.password,
-          phone: newWorker.phone,
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`.trim(),
+          username,
+          password,
+          phone,
         }),
       });
       closeWorkerForm();
@@ -130,20 +149,34 @@ export default function AdminWorkersPage() {
   async function handleUpdateWorker(e: React.FormEvent) {
     e.preventDefault();
     if (!editWorkerId || busy) return;
+    const firstName = editWorker.firstName.trim();
+    const lastName = editWorker.lastName.trim();
+    const username = editWorker.username.trim();
+    const phone = extractUzbekMobileDigits(editWorker.phone);
+    if (!firstName || !username || !phone) {
+      const msg = t('admin.workerEditRequiredFields');
+      setError(msg);
+      showToast('error', msg);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
       const payload: {
         id: string;
+        firstName: string;
+        lastName: string;
         name: string;
         username: string;
         password?: string;
-        phone?: string;
+        phone: string;
       } = {
         id: editWorkerId,
-        name: `${editWorker.firstName} ${editWorker.lastName}`.trim(),
-        username: editWorker.username,
-        phone: editWorker.phone,
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`.trim(),
+        username,
+        phone,
       };
       if (editWorker.password.trim()) {
         payload.password = editWorker.password;
@@ -182,10 +215,23 @@ export default function AdminWorkersPage() {
     }
   }
 
+  const canCreateWorker = Boolean(
+    newWorker.firstName.trim() &&
+      newWorker.username.trim() &&
+      newWorker.password.trim().length >= MIN_PASSWORD_LENGTH &&
+      extractUzbekMobileDigits(newWorker.phone),
+  );
+  const canEditWorker = Boolean(
+    editWorker.firstName.trim() &&
+      editWorker.username.trim() &&
+      extractUzbekMobileDigits(editWorker.phone),
+  );
+
   return (
     <>
       <PageHeader
         title={t('dashboard.workersTitle')}
+        description={t('dashboard.workersDesc')}
         actions={<Button onClick={() => setShowForm(true)}>+ {t('admin.addWorker')}</Button>}
       />
 
@@ -197,18 +243,28 @@ export default function AdminWorkersPage() {
         <form onSubmit={handleCreateWorker}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label={t('common.firstName')} required value={newWorker.firstName} onChange={(e) => setNewWorker({ ...newWorker, firstName: e.target.value })} />
-            <Input label={t('common.lastName')} required value={newWorker.lastName} onChange={(e) => setNewWorker({ ...newWorker, lastName: e.target.value })} />
-            <Input label={t('common.login')} required value={newWorker.username} onChange={(e) => setNewWorker({ ...newWorker, username: e.target.value })} />
+            <Input label={t('common.lastName')} value={newWorker.lastName} onChange={(e) => setNewWorker({ ...newWorker, lastName: e.target.value })} />
+            <Input label={t('common.login')} required value={newWorker.username} onChange={(e) => setNewWorker({ ...newWorker, username: e.target.value })} autoComplete="off" />
+            <div>
+              <label className={uiFieldLabelClass}>{t('admin.phone')}</label>
+              <WorkerPhoneInput
+                value={newWorker.phone}
+                onChange={(phone) => setNewWorker({ ...newWorker, phone })}
+                placeholder={t('admin.phonePlaceholder')}
+              />
+            </div>
             <Input
-              label={t('admin.phone')}
-              value={newWorker.phone}
-              onChange={(e) => setNewWorker({ ...newWorker, phone: formatPhoneInput(e.target.value) })}
-              placeholder={t('admin.phonePlaceholder')}
+              label={t('common.password')}
+              type="password"
+              required
+              minLength={MIN_PASSWORD_LENGTH}
+              value={newWorker.password}
+              onChange={(e) => setNewWorker({ ...newWorker, password: e.target.value })}
+              autoComplete="new-password"
             />
-            <Input label={t('common.password')} type="password" required value={newWorker.password} onChange={(e) => setNewWorker({ ...newWorker, password: e.target.value })} />
           </div>
-          <div className="mt-4 flex gap-2">
-            <Button type="submit" disabled={busy}>
+          <div className="mt-4 flex flex-col gap-2 xs:flex-row">
+            <Button type="submit" disabled={busy || !canCreateWorker}>
               {busy ? t('common.creating') : t('admin.addWorker')}
             </Button>
             <Button variant="outline" type="button" onClick={closeWorkerForm} disabled={busy}>{t('common.cancel')}</Button>
@@ -220,14 +276,16 @@ export default function AdminWorkersPage() {
         <form onSubmit={handleUpdateWorker}>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label={t('common.firstName')} required value={editWorker.firstName} onChange={(e) => setEditWorker({ ...editWorker, firstName: e.target.value })} />
-            <Input label={t('common.lastName')} required value={editWorker.lastName} onChange={(e) => setEditWorker({ ...editWorker, lastName: e.target.value })} />
-            <Input label={t('common.login')} required value={editWorker.username} onChange={(e) => setEditWorker({ ...editWorker, username: e.target.value })} />
-            <Input
-              label={t('admin.phone')}
-              value={editWorker.phone}
-              onChange={(e) => setEditWorker({ ...editWorker, phone: formatPhoneInput(e.target.value) })}
-              placeholder={t('admin.phonePlaceholder')}
-            />
+            <Input label={t('common.lastName')} value={editWorker.lastName} onChange={(e) => setEditWorker({ ...editWorker, lastName: e.target.value })} />
+            <Input label={t('common.login')} required value={editWorker.username} onChange={(e) => setEditWorker({ ...editWorker, username: e.target.value })} autoComplete="off" />
+            <div>
+              <label className={uiFieldLabelClass}>{t('admin.phone')}</label>
+              <WorkerPhoneInput
+                value={editWorker.phone}
+                onChange={(phone) => setEditWorker({ ...editWorker, phone })}
+                placeholder={t('admin.phonePlaceholder')}
+              />
+            </div>
             <div className="sm:col-span-2">
               <Input
                 label={t('admin.newPassword')}
@@ -238,8 +296,8 @@ export default function AdminWorkersPage() {
               />
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <Button type="submit" disabled={busy}>
+          <div className="mt-4 flex flex-col gap-2 xs:flex-row">
+            <Button type="submit" disabled={busy || !canEditWorker}>
               {busy ? t('common.saving') : t('common.save')}
             </Button>
             <Button variant="outline" type="button" onClick={closeEditWorker} disabled={busy}>{t('common.cancel')}</Button>
@@ -257,7 +315,7 @@ export default function AdminWorkersPage() {
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-app-border bg-app-card shadow-sm dark:ring-1 dark:ring-metallic-green/15">
-          <div className="hidden grid-cols-12 border-b border-app-border px-5 py-3 text-xs font-semibold uppercase tracking-wider text-app-muted sm:grid">
+          <div className="hidden grid-cols-12 border-b border-app-border px-5 py-3 text-xs font-semibold uppercase tracking-wider text-app-muted md:grid">
             <div className="col-span-3">{t('dashboard.nameCol')}</div>
             <div className="col-span-2">{t('dashboard.loginCol')}</div>
             <div className="col-span-2">Reyting</div>
@@ -282,22 +340,23 @@ export default function AdminWorkersPage() {
                     setProfileWorkerId(w.id);
                   }
                 }}
-                className={`grid cursor-pointer items-center gap-2 border-b border-app-border px-5 py-4 transition last:border-0 hover:bg-app-bg/60 sm:grid-cols-12 ${isLeader ? 'bg-yellow-50/60 dark:bg-yellow-900/10' : ''}`}
+                className={`grid cursor-pointer items-center gap-2 border-b border-app-border px-4 py-4 transition last:border-0 hover:bg-app-bg/60 md:grid-cols-12 md:px-5 ${isLeader ? 'bg-yellow-50/60 dark:bg-yellow-900/10' : ''}`}
               >
-                <div className="sm:col-span-3">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-app-text">{w.name}</p>
+                <div className="md:col-span-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="min-w-0 break-words font-medium text-app-text">{w.name}</p>
                     {isLeader && <span title={t('rating.weeklyLeader')}>🏆</span>}
                   </div>
                   {w.telegramId && (
                     <p className="text-xs text-app-muted">Telegram: {w.telegramId}</p>
                   )}
                 </div>
-                <p className="text-sm text-app-muted sm:col-span-2">@{w.username}</p>
-                <div className="sm:col-span-2">
+                <p className="text-sm text-app-muted md:col-span-2">@{w.username}</p>
+                <div className="md:col-span-2">
                   <StarRating rating={workerRating?.rating ?? 0} size="sm" />
                 </div>
-                <p className="text-sm sm:col-span-2">
+                <p className="text-sm md:col-span-2">
+                  <span className="mr-1 text-xs text-app-muted md:hidden">{t('rating.weeklyRank')}:</span>
                   {weeklyEntry?.weeklyRank != null ? (
                     <span className={`font-semibold ${weeklyEntry.weeklyRank === 1 ? 'text-green-600 dark:text-green-400' : 'text-app-text'}`}>
                       {formatWeeklyRank(weeklyEntry.weeklyRank, locale)}
@@ -306,9 +365,12 @@ export default function AdminWorkersPage() {
                     <span className="text-app-muted">—</span>
                   )}
                 </p>
-                <p className="text-sm sm:col-span-1">{count} {t('dashboard.countUnit')}</p>
+                <p className="text-sm md:col-span-1">
+                  <span className="mr-1 text-xs text-app-muted md:hidden">{t('dashboard.activeCol')}:</span>
+                  {count} {t('dashboard.countUnit')}
+                </p>
                 <div
-                  className="flex flex-wrap justify-end gap-2 sm:col-span-2"
+                  className="flex flex-wrap justify-start gap-2 md:col-span-2 md:justify-end [&>button]:flex-1 md:[&>button]:flex-none"
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
                 >
@@ -343,5 +405,35 @@ export default function AdminWorkersPage() {
         onUpdated={() => loadData({ silent: true })}
       />
     </>
+  );
+}
+
+function WorkerPhoneInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className={cn(uiInputGroupClass, 'mt-1.5')}>
+      <span className="select-none pl-3 text-sm text-app-muted">+998</span>
+      <input
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel-national"
+        required
+        value={value}
+        onChange={(e) => onChange(formatPhoneField(e.target.value))}
+        onPaste={(e) => {
+          e.preventDefault();
+          onChange(formatPhoneField(e.clipboardData.getData('text')));
+        }}
+        placeholder={placeholder}
+        className="w-full bg-transparent px-1 py-2 text-sm text-app-text outline-none"
+      />
+    </div>
   );
 }
