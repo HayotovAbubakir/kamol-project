@@ -396,6 +396,12 @@
     @apply mx-auto w-full max-w-7xl xl:max-w-[100rem] 2xl:max-w-[96rem];
   }
 
+  .app-main-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+
   @media (min-width: 1920px) {
     .ui-project-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1340,6 +1346,13 @@
     transform: translate(-50%, -50%);
     object-fit: cover;
     object-position: center;
+  }
+
+  .avatar-frame-iron {
+    border-color: #64748b !important;
+    box-shadow:
+      0 0 0 2px rgba(100, 116, 139, 0.28),
+      0 4px 10px rgba(71, 85, 105, 0.28);
   }
 
   .avatar-frame-bronze {

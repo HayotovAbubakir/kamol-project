@@ -15,7 +15,7 @@ export default function WorkerWorkPassPage() {
   if (loading) return <SkeletonPage />;
 
   return (
-    <>
+    <div className="pb-4 sm:pb-6">
       <PageHeader
         title={t('designPass.brand')}
         actions={
@@ -30,6 +30,6 @@ export default function WorkerWorkPassPage() {
       ) : (
         <p className="text-sm text-app-muted">{t('common.loading')}</p>
       )}
-    </>
+    </div>
   );
 }

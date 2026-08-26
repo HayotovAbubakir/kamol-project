@@ -43,7 +43,7 @@ export function DesignPassPanel({ designPass, compact = false }: DesignPassPanel
   return (
     <section
       className={cn(
-        'design-pass-panel overflow-hidden rounded-2xl border shadow-sm',
+        'design-pass-panel rounded-2xl border shadow-sm',
         compact ? 'p-4' : 'p-5 sm:p-6',
       )}
       style={{
@@ -137,7 +137,7 @@ export function DesignPassPanel({ designPass, compact = false }: DesignPassPanel
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-app-muted">
           {t('designPass.rewardTrack')}
         </p>
-        <div className="design-pass-track overflow-x-auto pb-2">
+        <div className="design-pass-track overflow-x-auto overscroll-x-contain pb-2">
           <div className="flex min-w-max gap-3 px-1">
             {designPass.tiers.map((tier) => {
               const claimKey = designPassClaimKey(designPass.seasonId, tier.id);

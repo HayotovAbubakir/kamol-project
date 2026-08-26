@@ -1,5 +1,6 @@
 'use client';
 
+import { RankIcon, TitleIcon } from '@/components/icons/RankIcons';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { locText } from '@/lib/rewardCatalog';
 import { cn } from '@/lib/utils';
@@ -42,7 +43,7 @@ export function WorkerTitleBadge({
               : 'bg-app-accent/10 text-app-accent',
           )}
         >
-          <span aria-hidden>{item.icon}</span>
+          <TitleIcon id={item.icon || item.id} className="h-3.5 w-3.5" />
           {locText(item.label, locale) || t(item.labelKey)}
         </span>
       ))}
@@ -53,7 +54,7 @@ export function WorkerTitleBadge({
 interface WorkerRankBannerProps {
   lifetimeRank: number | null;
   lifetimePoints: number;
-  nextTitle: { labelKey: string; icon: string; minPoints: number } | null;
+  nextTitle: { id: string; labelKey: string; icon: string; minPoints: number } | null;
   className?: string;
 }
 
@@ -80,15 +81,15 @@ export function WorkerRankBanner({
               : t('gamification.rankBannerNone')}
           </p>
           {nextTitle && (
-            <p className="mt-1 text-xs text-app-muted">
-              {nextTitle.icon}{' '}
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-app-muted">
+              <RankIcon id={nextTitle.id} className="h-3.5 w-3.5" />
               {t('gamification.nextTitle')
                 .replace('{title}', t(nextTitle.labelKey))
                 .replace('{points}', String(nextTitle.minPoints - lifetimePoints))}
             </p>
           )}
         </div>
-        {lifetimeRank === 1 && <span className="text-2xl">👑</span>}
+        {lifetimeRank === 1 && <RankIcon id="points_king" className="h-7 w-7" />}
       </div>
     </div>
   );

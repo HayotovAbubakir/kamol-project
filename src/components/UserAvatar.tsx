@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { TitleIcon } from '@/components/icons/RankIcons';
 import { getAvatarPalette, getPersonInitials } from '@/lib/personAvatar';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +13,7 @@ const SIZE_CLASS = {
 export type UserAvatarSize = keyof typeof SIZE_CLASS;
 export type UserAvatarFrame =
   | 'default'
+  | 'iron'
   | 'bronze'
   | 'silver'
   | 'gold'
@@ -33,6 +35,7 @@ interface UserAvatarProps {
 
 const FRAME_CLASS: Record<UserAvatarFrame, string> = {
   default: '',
+  iron: 'avatar-frame-iron',
   bronze: 'avatar-frame-bronze',
   silver: 'avatar-frame-silver',
   gold: 'avatar-frame-gold',
@@ -91,7 +94,7 @@ export function UserAvatar({
           )}
           aria-hidden
         >
-          {badge ?? '👑'}
+          <TitleIcon id={badge ?? (showCrown ? 'month_champion' : undefined)} className="h-3.5 w-3.5" />
         </span>
       )}
     </span>

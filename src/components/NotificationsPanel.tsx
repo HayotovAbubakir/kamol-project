@@ -13,7 +13,6 @@ import { UserAvatar } from '@/components/UserAvatar';
 interface NotificationsPanelProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
-  onMarkAllRead: () => void;
   full?: boolean;
   embedded?: boolean;
   compact?: boolean;
@@ -126,7 +125,6 @@ function NotificationIcon({
 export function NotificationsPanel({
   notifications,
   onMarkRead,
-  onMarkAllRead,
   full = false,
   embedded = false,
   compact = false,
@@ -144,37 +142,19 @@ export function NotificationsPanel({
         !full && (embedded ? cn('flex h-full min-h-0 flex-col overflow-hidden', compact ? 'p-2.5' : 'p-3') : 'p-4'),
       )}
     >
-      {(!full || unreadCount > 0) && (
+      {!full && unreadCount > 0 && (
         <div
           className={cn(
             'flex shrink-0 items-center justify-between gap-2',
-            full ? 'border-b border-app-border pb-3' : embedded ? (compact ? 'mb-1.5' : 'mb-2') : 'mb-3',
+            embedded ? (compact ? 'mb-1.5' : 'mb-2') : 'mb-3',
           )}
         >
-          {!full && (
-            <h2 className={cn('font-semibold', embedded && (compact ? 'text-xs' : 'text-sm'))}>
-              {t('notifications.title')}
-              {unreadCount > 0 && (
-                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-deadline-red px-1.5 text-xs text-white">
-                  {unreadCount}
-                </span>
-              )}
-            </h2>
-          )}
-          {full && unreadCount > 0 && (
-            <p className="text-sm text-app-muted">
-              {unreadCount} {t('notifications.unreadCount')}
-            </p>
-          )}
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={onMarkAllRead}
-              className={cn('ui-link-btn', full && 'ml-auto')}
-            >
-              {t('notifications.markAll')}
-            </button>
-          )}
+          <h2 className={cn('font-semibold', embedded && (compact ? 'text-xs' : 'text-sm'))}>
+            {t('notifications.title')}
+            <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-deadline-red px-1.5 text-xs text-white">
+              {unreadCount}
+            </span>
+          </h2>
         </div>
       )}
 

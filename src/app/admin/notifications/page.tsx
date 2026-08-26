@@ -7,7 +7,8 @@ import { NotificationDateFilter } from '@/components/NotificationDateFilter';
 import { SkeletonPage } from '@/components/Skeleton';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { useAdminData } from '@/hooks/useAdminData';
-import { apiFetch, getSession } from '@/lib/auth';
+import { useAutoMarkAllNotificationsRead } from '@/hooks/useAutoMarkAllNotificationsRead';
+import { apiFetch } from '@/lib/auth';
 import { notifyNotificationsUpdated } from '@/lib/notificationEvents';
 import {
   filterNotificationsByDatePreset,
@@ -18,7 +19,8 @@ export default function AdminNotificationsPage() {
   const { t } = useAppSettings();
   const { notifications, loading, updateNotifications } = useAdminData();
   const [datePreset, setDatePreset] = useState<NotificationDatePreset>('this_week');
-  const session = getSession();
+
+  useAutoMarkAllNotificationsRead(notifications, loading, updateNotifications);
 
   const filtered = useMemo(
     () => filterNotificationsByDatePreset(notifications, datePreset),
@@ -35,20 +37,6 @@ export default function AdminNotificationsPage() {
       notifyNotificationsUpdated();
     } catch {
       // rollback on failure
-      updateNotifications(notifications);
-    }
-  }
-
-  async function markAllRead() {
-    if (!session) return;
-    updateNotifications(notifications.map((n) => (n.read ? n : { ...n, read: true })));
-    try {
-      await apiFetch('/api/notifications', {
-        method: 'PATCH',
-        body: JSON.stringify({ markAllRead: true, userId: session.id }),
-      });
-      notifyNotificationsUpdated();
-    } catch {
       updateNotifications(notifications);
     }
   }
@@ -70,7 +58,6 @@ export default function AdminNotificationsPage() {
           full
           notifications={filtered}
           onMarkRead={markRead}
-          onMarkAllRead={markAllRead}
           emptyMessage={
             datePreset === 'this_week'
               ? t('notifications.emptyFiltered')

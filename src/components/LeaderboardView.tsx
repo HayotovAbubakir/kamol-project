@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import { Crown, Trophy } from 'lucide-react';
+import { PlaceMedal } from '@/components/icons/RankIcons';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { LeaderboardHallOfFame } from '@/components/LeaderboardHallOfFame';
@@ -22,7 +24,6 @@ interface LeaderboardViewProps {
   onSelectWorker: (workerId: string) => void;
 }
 
-const RANK_MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const MONTH_INDEXES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 export function LeaderboardView({
@@ -127,7 +128,7 @@ export function LeaderboardView({
                 )}
               >
                 <div className="flex shrink-0 items-center gap-2 md:col-span-2">
-                  <span className="text-lg">{podium ? RANK_MEDAL[entry.rank] : null}</span>
+                  {podium && entry.rank <= 3 ? <PlaceMedal place={entry.rank as 1 | 2 | 3} className="h-5 w-5" /> : <span className="w-5" />}
                   <span className="text-sm font-semibold tabular-nums text-app-text">{entry.rank}</span>
                 </div>
                 <div className="flex min-w-0 flex-1 items-center gap-3 md:col-span-6">
@@ -142,13 +143,13 @@ export function LeaderboardView({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="min-w-0 truncate font-medium text-app-text">{entry.workerName}</p>
                       {entry.isPointsKing && (
-                        <span className="rounded-full bg-cyan-400/15 px-1.5 py-0.5 text-[10px] font-bold text-cyan-500">
-                          👑
+                        <span className="inline-flex rounded-full bg-cyan-400/15 p-1 text-cyan-500">
+                          <Crown className="h-3 w-3" strokeWidth={2} />
                         </span>
                       )}
                       {entry.isCurrentMonthChampion && (
-                        <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-500">
-                          🥇
+                        <span className="inline-flex rounded-full bg-amber-400/15 p-1 text-amber-500">
+                          <PlaceMedal place={1} className="h-3 w-3" />
                         </span>
                       )}
                       {entry.isLegend && (
@@ -157,8 +158,9 @@ export function LeaderboardView({
                         </span>
                       )}
                       {(entry.firstPlaceWins ?? 0) > 0 && (
-                        <span className="rounded-full bg-app-bg px-1.5 py-0.5 text-[10px] font-semibold text-app-muted">
-                          {entry.firstPlaceWins}× 🥇
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-app-bg px-1.5 py-0.5 text-[10px] font-semibold text-app-muted">
+                          {entry.firstPlaceWins}×
+                          <Trophy className="h-3 w-3 text-amber-400" strokeWidth={2} />
                         </span>
                       )}
                     </div>

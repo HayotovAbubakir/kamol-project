@@ -1,5 +1,6 @@
 'use client';
 
+import { Crown, Trophy } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
 import { HallOfFameMonths } from '@/components/WorkerGamificationPanel';
 import { WorkerTitleBadge } from '@/components/WorkerTitleBadge';
@@ -21,7 +22,7 @@ export function LeaderboardHallOfFame({ entries, onSelectWorker }: LeaderboardHa
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-amber-400/25 bg-gradient-to-br from-amber-50/80 to-app-card p-4 shadow-sm dark:from-amber-950/20 dark:to-app-card sm:p-5">
       <div className="mb-4 flex items-center gap-2">
-        <span className="text-xl">🏆</span>
+        <Trophy className="h-5 w-5 text-amber-400" strokeWidth={1.9} />
         <div>
           <h2 className="font-display text-base font-semibold text-app-text sm:text-lg">
             {t('gamification.hallOfFame')}
@@ -55,8 +56,9 @@ export function LeaderboardHallOfFame({ entries, onSelectWorker }: LeaderboardHa
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate font-semibold text-app-text">{entry.workerName}</p>
                   {entry.isPointsKing && (
-                    <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-600 dark:text-cyan-300">
-                      👑 {t('gamification.title.pointsKing')}
+                    <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-600 dark:text-cyan-300">
+                      <Crown className="h-3 w-3" strokeWidth={2} />
+                      {t('gamification.title.pointsKing')}
                     </span>
                   )}
                   {entry.isLegend && (
@@ -79,7 +81,9 @@ export function LeaderboardHallOfFame({ entries, onSelectWorker }: LeaderboardHa
                   {t('gamification.lifetimeShort')}: {entry.lifetimePoints} {t('rating.pointsUnit')}
                 </p>
               </div>
-              {index === 0 && entry.isLegend && <span className="text-2xl">👑</span>}
+              {index === 0 && entry.isLegend && (
+                <Crown className="h-6 w-6 shrink-0 text-amber-400" strokeWidth={1.9} />
+              )}
             </div>
           </button>
         ))}

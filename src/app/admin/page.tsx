@@ -9,7 +9,7 @@ import { Button } from '@/components/ui';
 import { SkeletonDashboard } from '@/components/Skeleton';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { useAdminData } from '@/hooks/useAdminData';
-import { apiFetch, getSession } from '@/lib/auth';
+import { apiFetch } from '@/lib/auth';
 import { notifyNotificationsUpdated } from '@/lib/notificationEvents';
 
 export default function AdminDashboardPage() {
@@ -26,28 +26,12 @@ export default function AdminDashboardPage() {
     completedCount,
   } = useAdminData();
 
-  const session = getSession();
-
   async function markRead(id: string) {
     updateNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
       await apiFetch('/api/notifications', {
         method: 'PATCH',
         body: JSON.stringify({ id }),
-      });
-      notifyNotificationsUpdated();
-    } catch {
-      updateNotifications(notifications);
-    }
-  }
-
-  async function markAllRead() {
-    if (!session) return;
-    updateNotifications(notifications.map((n) => (n.read ? n : { ...n, read: true })));
-    try {
-      await apiFetch('/api/notifications', {
-        method: 'PATCH',
-        body: JSON.stringify({ markAllRead: true, userId: session.id }),
       });
       notifyNotificationsUpdated();
     } catch {
@@ -124,7 +108,6 @@ export default function AdminDashboardPage() {
             compact
             notifications={notifications.slice(0, 3)}
             onMarkRead={markRead}
-            onMarkAllRead={markAllRead}
           />
           <div className="mt-2 flex justify-end">
             <Link href="/admin/notifications" className="ui-link-btn text-xs">

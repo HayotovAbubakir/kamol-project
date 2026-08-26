@@ -200,7 +200,7 @@ export function getHallOfFame(store: DataStore): HallOfFameEntry[] {
     if (isPointsKing && !specialTitles.some((item) => item.id === 'points_king')) {
       specialTitles.unshift({
         id: 'points_king',
-        icon: '👑',
+        icon: 'points_king',
         labelKey: 'gamification.title.pointsKing',
         kind: 'special',
       });
@@ -236,10 +236,10 @@ export function getHallOfFame(store: DataStore): HallOfFameEntry[] {
 
   for (const entry of entries) {
     if (entry.isLegend && entry.firstPlaceWins >= 2) {
-      if (!entry.specialTitles.some((item) => item.id === 'legend')) {
+      if (!entry.specialTitles.some((item) => item.id === 'hof_legend')) {
         entry.specialTitles.push({
-          id: 'legend',
-          icon: '🏆',
+          id: 'hof_legend',
+          icon: 'hof_legend',
           labelKey: 'gamification.title.legend',
           kind: 'special',
         });

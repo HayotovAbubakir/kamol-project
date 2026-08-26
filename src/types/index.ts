@@ -209,7 +209,7 @@ export interface WorkerGamificationProfile {
   lifetimeRank: number | null;
   title: WorkerTitleInfo;
   specialTitles: WorkerTitleInfo[];
-  nextTitle: { labelKey: string; icon: string; minPoints: number } | null;
+  nextTitle: { id: string; labelKey: string; icon: string; minPoints: number } | null;
   perks: UnlockedPerk[];
   nextPerk: UnlockedPerk | null;
   activeFeatures: string[];
@@ -217,7 +217,7 @@ export interface WorkerGamificationProfile {
   isLegend: boolean;
   isCurrentMonthChampion: boolean;
   isPointsKing: boolean;
-  avatarFrame: 'default' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'legend' | 'champion';
+  avatarFrame: 'default' | 'iron' | 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'legend' | 'champion';
   avatarBadge: string;
   designPassFrameClass?: string | null;
   designPassFrameColor?: string | null;

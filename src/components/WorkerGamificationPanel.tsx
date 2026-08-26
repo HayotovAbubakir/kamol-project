@@ -1,15 +1,16 @@
 'use client';
 
+import { Crown, Flame, Trophy } from 'lucide-react';
+import { PlaceMedal, RankIcon, TitleIcon } from '@/components/icons/RankIcons';
 import { UserAvatar } from '@/components/UserAvatar';
 import { WorkerRankBanner, WorkerTitleBadge } from '@/components/WorkerTitleBadge';
 import { formatMonthLabel } from '@/lib/monthKey';
 import { locText } from '@/lib/rewardCatalog';
 import { formatWinMonthList, hasWorkerFeature } from '@/lib/workerGamification';
+import { LIFETIME_TITLE_TIERS } from '@/lib/workerTitles';
 import { useAppSettings } from '@/context/AppSettingsContext';
 import { cn } from '@/lib/utils';
 import type { WorkerGamificationProfile } from '@/types';
-
-const RANK_MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 interface WorkerGamificationPanelProps {
   gamification: WorkerGamificationProfile;
@@ -29,8 +30,6 @@ export function WorkerGamificationPanel({
     lifetimePoints,
     monthlyWins,
     firstPlaceCount,
-    perks,
-    nextPerk,
     nextTitle,
     title,
     specialTitles,
@@ -40,13 +39,7 @@ export function WorkerGamificationPanel({
     isPointsKing,
     lifetimeRank,
     avatarFrame,
-    avatarBadge,
   } = gamification;
-
-  const progressToNext =
-    nextPerk && lifetimePoints < nextPerk.points
-      ? Math.min(100, Math.round((lifetimePoints / nextPerk.points) * 100))
-      : 100;
 
   const progressToTitle =
     nextTitle && lifetimePoints < nextTitle.minPoints
@@ -62,17 +55,16 @@ export function WorkerGamificationPanel({
             seed={workerId}
             size="xl"
             frame={avatarFrame}
-            badge={avatarBadge}
             designPassFrameClass={gamification.designPassFrameClass}
             designPassFrameColor={gamification.designPassFrameColor}
           />
           <div className="min-w-0">
             <WorkerTitleBadge title={title} specialTitles={specialTitles} showAll />
-            <p className="mt-2 text-xs text-app-muted">
-              {lifetimeRank
-                ? t('gamification.lifetimeRankLabel').replace('{rank}', String(lifetimeRank))
-                : t('gamification.rankBannerNone')}
-            </p>
+            {lifetimeRank ? (
+              <p className="mt-2 text-xs text-app-muted">
+                {t('gamification.lifetimeRankLabel').replace('{rank}', String(lifetimeRank))}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -100,13 +92,15 @@ export function WorkerGamificationPanel({
           <p className="mt-1 text-3xl font-bold tabular-nums text-app-text">{firstPlaceCount}</p>
           <div className="mt-2 flex flex-wrap gap-1">
             {isPointsKing && (
-              <span className="inline-flex rounded-full bg-cyan-400/15 px-2 py-0.5 text-xs font-bold text-cyan-500">
-                👑 {t('gamification.title.pointsKing')}
+              <span className="inline-flex items-center gap-1 rounded-full bg-cyan-400/15 px-2 py-0.5 text-xs font-bold text-cyan-500">
+                <Crown className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('gamification.title.pointsKing')}
               </span>
             )}
             {isLegend && (
-              <span className="inline-flex rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-bold text-amber-500">
-                🏆 {t('gamification.legendBadge')}
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-bold text-amber-500">
+                <Trophy className="h-3.5 w-3.5" strokeWidth={2} />
+                {t('gamification.legendBadge')}
               </span>
             )}
           </div>
@@ -115,12 +109,20 @@ export function WorkerGamificationPanel({
           <p className="text-xs font-semibold uppercase tracking-wider text-app-muted">
             {t('gamification.streak')}
           </p>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-app-text">
-            {completionStreak > 0 ? `${completionStreak} 🔥` : '—'}
+          <p className="mt-1 inline-flex items-center gap-1.5 text-3xl font-bold tabular-nums text-app-text">
+            {completionStreak > 0 ? (
+              <>
+                {completionStreak}
+                <Flame className="h-6 w-6 text-orange-400" strokeWidth={2} />
+              </>
+            ) : (
+              '—'
+            )}
           </p>
           {isCurrentMonthChampion && (
-            <span className="mt-2 inline-flex rounded-full bg-amber-300/15 px-2 py-0.5 text-xs font-bold text-amber-400">
-              👑 {t('gamification.currentChampion')}
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-300/15 px-2 py-0.5 text-xs font-bold text-amber-400">
+              <Crown className="h-3.5 w-3.5" strokeWidth={2} />
+              {t('gamification.currentChampion')}
             </span>
           )}
         </div>
@@ -140,28 +142,9 @@ export function WorkerGamificationPanel({
               style={{ width: `${progressToTitle}%` }}
             />
           </div>
-          <p className="mt-2 text-sm text-app-muted">
-            {nextTitle.icon} {t(nextTitle.labelKey)}
-          </p>
-        </div>
-      )}
-
-      {nextPerk && (
-        <div className="rounded-xl border border-app-border bg-app-bg/40 p-4">
-          <div className="mb-2 flex items-center justify-between gap-2 text-sm">
-            <span className="font-medium text-app-text">{t('gamification.nextPerk')}</span>
-            <span className="tabular-nums text-app-muted">
-              {lifetimePoints} / {nextPerk.points}
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-app-border">
-            <div
-              className="h-full rounded-full bg-app-accent transition-all duration-500"
-              style={{ width: `${progressToNext}%` }}
-            />
-          </div>
-          <p className="mt-2 text-sm text-app-muted">
-            {nextPerk.icon} {locText(nextPerk.label, locale) || t(nextPerk.labelKey)}
+          <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-app-muted">
+            <RankIcon id={nextTitle.id} />
+            {t(nextTitle.labelKey)}
           </p>
         </div>
       )}
@@ -175,9 +158,10 @@ export function WorkerGamificationPanel({
                 key={`${win.month}-${win.rank}`}
                 className="flex items-center justify-between gap-3 rounded-lg border border-app-border/60 px-3 py-2"
               >
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <PlaceMedal place={win.rank} />
                   <p className="text-sm font-medium text-app-text">
-                    {RANK_MEDAL[win.rank]} {formatMonthLabel(win.month, locale)}
+                    {formatMonthLabel(win.month, locale)}
                     {win.live ? ` · ${t('gamification.liveMonth')}` : ''}
                   </p>
                 </div>
@@ -190,47 +174,53 @@ export function WorkerGamificationPanel({
         </div>
       )}
 
-      {!compact && (
-        <div className="rounded-xl border border-app-border bg-app-bg/40 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-app-text">{t('gamification.titlesGuide')}</h4>
-          <div className="mb-4 grid gap-2 sm:grid-cols-2">
-            {[title, ...specialTitles].map((item) => (
+      <div className="rounded-xl border border-app-border bg-app-bg/40 p-4">
+        {!compact && (
+          <>
+            <h4 className="mb-3 text-sm font-semibold text-app-text">{t('gamification.titlesGuide')}</h4>
+            <div className="mb-4 grid gap-2 sm:grid-cols-2">
+              {[title, ...specialTitles].map((item) => (
+                <div
+                  key={item.id}
+                  className="inline-flex items-center gap-2 rounded-lg border border-app-accent/30 bg-app-accent/5 px-3 py-2 text-sm font-medium text-app-text"
+                >
+                  <TitleIcon id={item.icon || item.id} />
+                  {locText(item.label, locale) || t(item.labelKey)}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <h4 className="mb-3 text-sm font-semibold text-app-text">{t('gamification.ranksTitle')}</h4>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {LIFETIME_TITLE_TIERS.map((tier) => {
+            const unlocked = lifetimePoints >= tier.minPoints;
+            const current = title.id === tier.id;
+            return (
               <div
-                key={item.id}
-                className="rounded-lg border border-app-accent/30 bg-app-accent/5 px-3 py-2 text-sm font-medium text-app-text"
-              >
-                {item.icon} {locText(item.label, locale) || t(item.labelKey)}
-              </div>
-            ))}
-          </div>
-          <h4 className="mb-3 text-sm font-semibold text-app-text">{t('gamification.perksTitle')}</h4>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {perks.map((perk) => (
-              <div
-                key={perk.id}
+                key={tier.id}
                 className={cn(
                   'rounded-lg border px-3 py-2.5 transition',
-                  perk.unlocked
-                    ? 'border-app-accent/40 bg-app-accent/5'
-                    : 'border-app-border/60 bg-app-bg/30 opacity-60',
+                  current
+                    ? 'border-app-accent/50 bg-app-accent/10'
+                    : unlocked
+                      ? 'border-app-accent/30 bg-app-accent/5'
+                      : 'border-app-border/60 bg-app-bg/30 opacity-60',
                 )}
               >
-                <p className="text-sm font-semibold text-app-text">
-                  {perk.icon} {locText(perk.label, locale) || t(perk.labelKey)}
-                  {!perk.unlocked && (
-                    <span className="ml-2 text-xs font-normal text-app-muted">
-                      ({perk.points} {t('rating.pointsUnit')})
-                    </span>
-                  )}
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-app-text">
+                  <RankIcon id={tier.id} />
+                  {t(tier.labelKey)}
+                  <span className="text-xs font-normal text-app-muted">
+                    ({tier.minPoints} {t('rating.pointsUnit')})
+                  </span>
                 </p>
-                <p className="mt-0.5 text-xs text-app-muted">
-                  {locText(perk.description, locale) || t(perk.descKey)}
-                </p>
+                <p className="mt-0.5 text-xs text-app-muted">{t(tier.descKey)}</p>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      )}
+      </div>
     </div>
   );
 }

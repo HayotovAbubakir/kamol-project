@@ -237,13 +237,17 @@ export function AppShell({ role, children }: AppShellProps) {
           </div>
         </header>
 
-        <main
-          className={cn(
-            'ui-page-shell relative z-10 flex w-full min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] xs:px-4 sm:px-6 lg:px-8 lg:pb-8',
-            isAdminDashboard ? 'overflow-hidden py-2 sm:py-2.5' : 'overflow-y-auto pt-3 sm:pt-4 md:pt-5',
-          )}
-        >
-          {children}
+        <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            className={cn(
+              'ui-page-shell app-main-scroll w-full min-h-0 flex-1 overflow-x-hidden px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] xs:px-4 sm:px-6 lg:px-8 lg:pb-8',
+              isAdminDashboard
+                ? 'overflow-hidden py-2 sm:py-2.5'
+                : 'overflow-y-auto pt-3 sm:pt-4 md:pt-5',
+            )}
+          >
+            {children}
+          </div>
         </main>
 
         <nav className="ui-mobile-nav" aria-label={t('common.menu')}>
