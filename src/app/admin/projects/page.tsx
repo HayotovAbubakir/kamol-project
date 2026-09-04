@@ -205,16 +205,15 @@ function AdminProjectsPageContent() {
     setReassignWorker(available[0]?.id ?? '');
   }
 
-  const tabProjects = useMemo(
-    () =>
-      projectsByDate.filter((p) => {
-        if (tab === 'completed') return p.status === 'completed';
-        if (tab === 'pending') return p.status === 'pending';
-        if (tab === 'review') return p.status === 'pending_review';
-        return p.status === 'in_progress';
-      }),
-    [projectsByDate, tab],
-  );
+  const tabProjects = useMemo(() => {
+    const source = tab === 'completed' ? projectsByDate : projects;
+    return source.filter((p) => {
+      if (tab === 'completed') return p.status === 'completed';
+      if (tab === 'pending') return p.status === 'pending';
+      if (tab === 'review') return p.status === 'pending_review';
+      return p.status === 'in_progress';
+    });
+  }, [projects, projectsByDate, tab]);
 
   const tabProjectsAllTime = useMemo(
     () =>
@@ -233,11 +232,11 @@ function AdminProjectsPageContent() {
   );
 
   const tabCounts = useMemo(() => ({
-    pending: projectsByDate.filter((p) => p.status === 'pending').length,
-    active: projectsByDate.filter((p) => p.status === 'in_progress').length,
-    review: projectsByDate.filter((p) => p.status === 'pending_review').length,
-    completed: projectsByDate.filter((p) => p.status === 'completed').length,
-  }), [projectsByDate]);
+    pending: projects.filter((p) => p.status === 'pending').length,
+    active: projects.filter((p) => p.status === 'in_progress').length,
+    review: projects.filter((p) => p.status === 'pending_review').length,
+    completed: projects.filter((p) => p.status === 'completed').length,
+  }), [projects]);
 
   async function handleAssign(projectId: string) {
     if (!selectedWorker || formBusy) return;
@@ -663,21 +662,25 @@ function AdminProjectsPageContent() {
           clearLabel={t('common.searchClear')}
           className="sm:flex-1"
         />
-        <CompletedDateFilter selection={dateSelection} onChange={setDateSelection} />
+        {tab === 'completed' && (
+          <CompletedDateFilter selection={dateSelection} onChange={setDateSelection} />
+        )}
       </div>
-      <p className="-mt-2 mb-4 text-xs text-app-muted">{periodLabel}</p>
+      {tab === 'completed' && (
+        <p className="-mt-2 mb-4 text-xs text-app-muted">{periodLabel}</p>
+      )}
       {searchQuery.trim() && tabProjects.length > 0 && (
         <p className="-mt-2 mb-4 text-xs text-app-muted">
           {filtered.length} / {tabProjects.length}
         </p>
       )}
 
-      {!customDateReady ? (
+      {tab === 'completed' && !customDateReady ? (
         <EmptyState
           title={t('worker.completedCustomRange')}
           description={t('worker.completedCustomRangeHint')}
         />
-      ) : tabProjects.length === 0 && tabProjectsAllTime.length > 0 ? (
+      ) : tab === 'completed' && tabProjects.length === 0 && tabProjectsAllTime.length > 0 ? (
         <EmptyState
           title={t('admin.noProjectsInPeriod')}
           description={t('admin.noProjectsInPeriodDesc')}
